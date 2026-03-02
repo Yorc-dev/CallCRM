@@ -81,8 +81,12 @@ class PlaceholderAnalyzer:
         client_draft = {
             'name': client.name if client else '',
             'phone': client.primary_phone if client else '',
+            'gender': client.gender if client else 'unknown',
             'language': language_hint,
+            'reason': f'Inquiry from call {call.id}',
+            'result': 'pending_analysis',
             'notes': f'Auto-generated from call {call.id}',
+            'tags': [],
         }
 
         model_info = {
