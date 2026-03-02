@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.calls',
     'apps.analytics',
+    'apps.telephony_twilio',
 ]
 
 MIDDLEWARE = [
@@ -118,3 +119,13 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Twilio
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_WEBHOOK_BASE_URL = os.environ.get('TWILIO_WEBHOOK_BASE_URL', 'http://localhost:8000')
+TWILIO_DEFAULT_LANG = os.environ.get('TWILIO_DEFAULT_LANG', 'ru')
+# Comma-separated list of phone numbers, e.g. "+996222021103,+996702110333"
+TWILIO_OPERATOR_NUMBERS = os.environ.get('TWILIO_OPERATOR_NUMBERS', '')
+# Username=phone pairs, e.g. "Sultan=+996222021103,katana=+996702110333"
+TWILIO_OPERATOR_MAPPING = os.environ.get('TWILIO_OPERATOR_MAPPING', 'Sultan=+996222021103,katana=+996702110333')

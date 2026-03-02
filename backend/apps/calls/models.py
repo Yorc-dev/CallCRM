@@ -58,6 +58,10 @@ class Call(models.Model):
     duration_sec = models.IntegerField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_NEW)
     category = models.CharField(max_length=100, null=True, blank=True)
+    external_call_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    from_phone = models.CharField(max_length=30, null=True, blank=True)
+    to_phone = models.CharField(max_length=30, null=True, blank=True)
+    external_recording_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
