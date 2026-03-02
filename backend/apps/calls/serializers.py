@@ -11,9 +11,14 @@ def normalize_language(lang):
 
 
 class ClientSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source='name', required=False)
+    phone = serializers.CharField(source='primary_phone', required=False)
+
     class Meta:
         model = Client
-        fields = '__all__'
+        fields = ('id', 'full_name', 'name', 'phone', 'primary_phone',
+                  'gender', 'language_hint', 'tags', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
 
     def validate_language_hint(self, value):
         return normalize_language(value)
@@ -52,12 +57,16 @@ class CallSerializer(serializers.ModelSerializer):
     client_detail = ClientSerializer(source='client', read_only=True)
     has_recording = serializers.SerializerMethodField()
     has_analysis = serializers.SerializerMethodField()
+    # Frontend-friendly aliases
+    started_at = serializers.DateTimeField(source='call_datetime', required=False)
+    duration = serializers.IntegerField(source='duration_sec', required=False, allow_null=True)
 
     class Meta:
         model = Call
         fields = (
             'id', 'client', 'operator', 'operator_detail', 'client_detail',
-            'call_datetime', 'duration_sec', 'status', 'category',
+            'call_datetime', 'started_at', 'duration_sec', 'duration',
+            'status', 'category',
             'has_recording', 'has_analysis', 'created_at', 'updated_at',
         )
         read_only_fields = ('id', 'status', 'created_at', 'updated_at')
