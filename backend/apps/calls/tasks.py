@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.apps import apps
+from django.conf import settings
 
 
 @shared_task(bind=True)
@@ -8,7 +9,7 @@ def analyze_call(self, call_id, language_hint='ru', script_version='v1'):
     Celery task to analyze a call recording.
     1. Get call, set status=processing
     2. Get or create CallAnalysis
-    3. Run PlaceholderAnalyzer
+    3. Run OpenAIAnalyzer (if OPENAI_API_KEY set) or PlaceholderAnalyzer
     4. Save analysis
     5. Create/update Client from client_draft and link to call
     6. Set status=done
@@ -17,14 +18,19 @@ def analyze_call(self, call_id, language_hint='ru', script_version='v1'):
     Call = apps.get_model('calls', 'Call')
     CallAnalysis = apps.get_model('calls', 'CallAnalysis')
     Client = apps.get_model('calls', 'Client')
-    from apps.calls.analyzer import PlaceholderAnalyzer
+
+    if settings.OPENAI_API_KEY:
+        from apps.calls.analyzer_openai import OpenAIAnalyzer
+        analyzer = OpenAIAnalyzer()
+    else:
+        from apps.calls.analyzer import PlaceholderAnalyzer
+        analyzer = PlaceholderAnalyzer()
 
     call = Call.objects.select_related('client', 'operator').get(pk=call_id)
     call.status = Call.STATUS_PROCESSING
     call.save(update_fields=['status'])
 
     try:
-        analyzer = PlaceholderAnalyzer()
         result = analyzer.analyze(call, language_hint=language_hint)
 
         analysis, _ = CallAnalysis.objects.get_or_create(call=call)
