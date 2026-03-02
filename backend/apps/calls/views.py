@@ -1,5 +1,6 @@
 import hashlib
 
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -31,8 +32,23 @@ class CallViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = Call.objects.select_related('client', 'operator').prefetch_related('recordings')
         if user.role in ('chief', 'admin'):
-            return qs.all()
-        return qs.filter(operator=user)
+            qs = qs.all()
+        else:
+            qs = qs.filter(operator=user)
+
+        client_name = self.request.query_params.get('client_name', '').strip()
+        if client_name:
+            qs = qs.filter(client__name__icontains=client_name)
+
+        operator_name = self.request.query_params.get('operator_name', '').strip()
+        if operator_name:
+            qs = qs.filter(
+                Q(operator__username__icontains=operator_name)
+                | Q(operator__first_name__icontains=operator_name)
+                | Q(operator__last_name__icontains=operator_name)
+            )
+
+        return qs
 
     def perform_create(self, serializer):
         # If operator role, force operator=self; chiefs/admins can set any operator
