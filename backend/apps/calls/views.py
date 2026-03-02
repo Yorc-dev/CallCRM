@@ -1,11 +1,15 @@
 import hashlib
 
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, generics, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
 
+from apps.accounts.models import User
 from .models import Client, Call, CallRecording, CallAnalysis
 from .serializers import (
     ClientSerializer, CallSerializer, CallRecordingSerializer, CallAnalysisSerializer
@@ -140,3 +144,90 @@ class CallViewSet(viewsets.ModelViewSet):
             call.save(update_fields=['client'])
 
         return Response(ClientSerializer(client).data, status=status.HTTP_200_OK)
+
+
+class IntakeAudioView(APIView):
+    """
+    POST /api/intake/audio/
+    Upload an MP3 recording without a pre-existing Call or Client.
+    Creates the Call (client=None), creates the CallRecording, enqueues analysis,
+    and returns the call + recording + queued status.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Resolve operator
+        operator_id = request.data.get('operator_id')
+        if operator_id:
+            operator = get_object_or_404(User, pk=operator_id)
+        else:
+            operator = request.user
+
+        # call_datetime defaults to now
+        call_datetime_str = request.data.get('call_datetime')
+        if call_datetime_str:
+            call_datetime = parse_datetime(call_datetime_str) or timezone.now()
+        else:
+            call_datetime = timezone.now()
+
+        # duration_sec
+        duration_str = request.data.get('duration_sec')
+        try:
+            duration_sec = int(duration_str) if duration_str is not None else None
+        except (ValueError, TypeError):
+            duration_sec = None
+
+        # language_hint
+        language_hint = request.data.get('language_hint', 'ru')
+        if language_hint == 'kz':
+            language_hint = 'kk'
+
+        # script_version
+        script_version = request.data.get('script_version', 'v1')
+
+        # Create Call without client
+        call = Call.objects.create(
+            client=None,
+            operator=operator,
+            call_datetime=call_datetime,
+            duration_sec=duration_sec,
+            status=Call.STATUS_NEW,
+        )
+
+        # Compute sha256
+        sha256 = hashlib.sha256()
+        for chunk in file_obj.chunks():
+            sha256.update(chunk)
+        sha256_hex = sha256.hexdigest()
+        file_obj.seek(0)
+
+        mime_type = file_obj.content_type or 'audio/mpeg'
+        size_bytes = file_obj.size
+
+        recording = CallRecording.objects.create(
+            call=call,
+            file=file_obj,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            sha256=sha256_hex,
+        )
+
+        call.status = Call.STATUS_UPLOADED
+        call.save(update_fields=['status'])
+
+        # Enqueue analysis task
+        analyze_call_task.delay(call.id, language_hint=language_hint, script_version=script_version)
+
+        return Response(
+            {
+                'call': CallSerializer(call, context={'request': request}).data,
+                'recording': CallRecordingSerializer(recording, context={'request': request}).data,
+                'status': 'queued',
+            },
+            status=status.HTTP_201_CREATED,
+        )

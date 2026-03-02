@@ -127,7 +127,19 @@ curl -X POST http://localhost:8000/api/auth/login/ \
 TOKEN="<access_token_from_above>"
 ```
 
-### 2. Create a Client
+### 2. Upload MP3 directly (no prior client needed)
+```bash
+curl -X POST http://localhost:8000/api/intake/audio/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/call.mp3" \
+  -F "language_hint=ru" \
+  -F "duration_sec=120" \
+  -F "call_datetime=2024-06-01T10:00:00Z"
+# Returns: {"call": {...}, "recording": {...}, "status": "queued"}
+# Analysis runs in the background; a Client is auto-created and linked to the Call.
+```
+
+### 3. Create a Client (optional — manual path)
 ```bash
 curl -X POST http://localhost:8000/api/clients/ \
   -H "Authorization: Bearer $TOKEN" \
@@ -136,7 +148,7 @@ curl -X POST http://localhost:8000/api/clients/ \
 # Returns: {"id": 1, ...}
 ```
 
-### 3. Create a Call
+### 4. Create a Call (manual path)
 ```bash
 curl -X POST http://localhost:8000/api/calls/ \
   -H "Authorization: Bearer $TOKEN" \
@@ -145,7 +157,7 @@ curl -X POST http://localhost:8000/api/calls/ \
 # Returns: {"id": 1, "status": "new", ...}
 ```
 
-### 4. Upload MP3 Recording
+### 5. Upload MP3 Recording (manual path)
 ```bash
 curl -X POST http://localhost:8000/api/calls/1/recording/ \
   -H "Authorization: Bearer $TOKEN" \
@@ -189,6 +201,7 @@ curl "http://localhost:8000/api/analytics/overview?from=2024-01-01&to=2024-12-31
 | POST | `/api/auth/login/` | Obtain JWT tokens | None |
 | POST | `/api/auth/refresh/` | Refresh access token | None |
 | POST | `/api/auth/register/` | Register user | None (DEBUG) / Admin |
+| **POST** | **`/api/intake/audio/`** | **Upload MP3, auto-create Call+Client** | **All roles** |
 | GET/POST | `/api/clients/` | List/create clients | All roles |
 | GET/PUT/PATCH/DELETE | `/api/clients/{id}/` | Client CRUD | All roles |
 | GET/POST | `/api/calls/` | List/create calls | All roles |
