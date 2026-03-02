@@ -1,3 +1,5 @@
+import re
+
 from .models import ScriptTemplate, ScriptStep, CallAnalysis
 
 
@@ -7,8 +9,36 @@ class PlaceholderAnalyzer:
     without a real ASR/NLP backend.
     """
 
+    # Simple heuristics to extract phone and name from transcript text
+    _PHONE_RE = re.compile(r'(\+?[78]\d{10}|\+?[78][\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})')
+    # Matches Russian names following phrases like "говорит", "меня зовут", etc.
+    # Captures one or more space-separated capitalized Cyrillic words.
+    _NAME_RE = re.compile(
+        r'(?:говорит|меня зовут|это|клиент|зовут)\s+([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+)*)',
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _normalize_phone(raw: str) -> str:
+        """Strip spaces/dashes and normalise to +7XXXXXXXXXX format."""
+        digits = re.sub(r'\D', '', raw)
+        if len(digits) == 11 and digits[0] in ('7', '8'):
+            return '+7' + digits[1:]
+        return '+' + digits if digits else raw
+
     def analyze(self, call, language_hint='ru'):
-        transcript = f"(ASR not configured) - Demo transcript for call {call.id}"
+        # Demo transcript includes extractable name/phone so the flow can be demoed
+        transcript = (
+            f"(ASR not configured) - Demo transcript for call {call.id}. "
+            f"Говорит Иван Петров. Телефон: +77001234567."
+        )
+
+        # Attempt to extract phone and name via regex
+        phone_match = self._PHONE_RE.search(transcript)
+        extracted_phone = self._normalize_phone(phone_match.group(1)) if phone_match else ''
+
+        name_match = self._NAME_RE.search(transcript)
+        extracted_name = name_match.group(1).strip() if name_match else ''
 
         # Get default script template matching the language
         template = (
@@ -79,8 +109,8 @@ class PlaceholderAnalyzer:
 
         client = call.client
         client_draft = {
-            'name': client.name if client else '',
-            'phone': client.primary_phone if client else '',
+            'name': extracted_name or (client.name if client else ''),
+            'phone': extracted_phone or (client.primary_phone if client else ''),
             'language': language_hint,
             'notes': f'Auto-generated from call {call.id}',
         }

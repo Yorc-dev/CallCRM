@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import type { FormEvent } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { FormEvent, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import type { Call } from '../api/types';
@@ -44,6 +44,13 @@ export default function CallsList() {
   const [newClientId, setNewClientId] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Quick upload modal
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadLang, setUploadLang] = useState('ru');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const fetchCalls = async () => {
     setLoading(true);
     setError('');
@@ -84,16 +91,44 @@ export default function CallsList() {
     }
   };
 
+  const handleQuickUpload = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('language_hint', uploadLang);
+      const { data } = await api.post('/api/intake/audio/', formData);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      setUploadLang('ru');
+      navigate(`/calls/${data.call.id}`);
+    } catch {
+      setError('Failed to upload recording');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Calls</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
-        >
-          + New Call
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
+          >
+            ⬆ Quick Upload
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
+          >
+            + New Call
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -209,6 +244,51 @@ export default function CallsList() {
                 <button type="submit" disabled={creating}
                   className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium transition-colors disabled:opacity-60">
                   {creating ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Upload</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Upload an MP3 recording. A call entry will be created and analysis queued automatically.
+            </p>
+            <form onSubmit={handleQuickUpload} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">MP3 File <span className="text-red-500">*</span></label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/mpeg,.mp3"
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setUploadFile(e.target.files?.[0] ?? null)}
+                  className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                <select
+                  value={uploadLang}
+                  onChange={(e) => setUploadLang(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  <option value="ru">Russian</option>
+                  <option value="kk">Kazakh</option>
+                </select>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button type="button" onClick={() => { setShowUploadModal(false); setUploadFile(null); setUploadLang('ru'); }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={uploading || !uploadFile}
+                  className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-medium transition-colors disabled:opacity-60">
+                  {uploading ? 'Uploading...' : 'Upload & Analyze'}
                 </button>
               </div>
             </form>
