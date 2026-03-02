@@ -1,0 +1,142 @@
+import hashlib
+
+from django.shortcuts import get_object_or_404
+from rest_framework import viewsets, generics, status, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+
+from .models import Client, Call, CallRecording, CallAnalysis
+from .serializers import (
+    ClientSerializer, CallSerializer, CallRecordingSerializer, CallAnalysisSerializer
+)
+from .permissions import CallPermission, IsChiefOrAdmin
+from .tasks import analyze_call as analyze_call_task
+
+
+class ClientViewSet(viewsets.ModelViewSet):
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class CallViewSet(viewsets.ModelViewSet):
+    serializer_class = CallSerializer
+    permission_classes = [permissions.IsAuthenticated, CallPermission]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Call.objects.select_related('client', 'operator').prefetch_related('recordings')
+        if user.role in ('chief', 'admin'):
+            return qs.all()
+        return qs.filter(operator=user)
+
+    def perform_create(self, serializer):
+        # If operator role, force operator=self; chiefs/admins can set any operator
+        user = self.request.user
+        if user.role == 'operator':
+            serializer.save(operator=user)
+        else:
+            serializer.save()
+
+    @action(detail=True, methods=['post'], url_path='recording',
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_recording(self, request, pk=None):
+        call = self.get_object()
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Compute sha256
+        sha256 = hashlib.sha256()
+        for chunk in file_obj.chunks():
+            sha256.update(chunk)
+        sha256_hex = sha256.hexdigest()
+        file_obj.seek(0)
+
+        mime_type = file_obj.content_type or 'audio/mpeg'
+        size_bytes = file_obj.size
+
+        recording = CallRecording.objects.create(
+            call=call,
+            file=file_obj,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            sha256=sha256_hex,
+        )
+
+        call.status = Call.STATUS_UPLOADED
+        call.save(update_fields=['status'])
+
+        serializer = CallRecordingSerializer(recording, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='analyze')
+    def analyze(self, request, pk=None):
+        call = self.get_object()
+
+        if not call.recordings.exists():
+            return Response(
+                {'detail': 'Call has no recording. Upload a recording first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        language_hint = request.data.get('language_hint', 'ru')
+        # Normalize kz -> kk
+        if language_hint == 'kz':
+            language_hint = 'kk'
+        script_version = request.data.get('script_version', 'v1')
+
+        analyze_call_task.delay(call.id, language_hint=language_hint, script_version=script_version)
+
+        return Response(
+            {'detail': 'Analysis task queued.', 'call_id': call.id},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=True, methods=['get'], url_path='analysis')
+    def get_analysis(self, request, pk=None):
+        call = self.get_object()
+        analysis = get_object_or_404(CallAnalysis, call=call)
+        serializer = CallAnalysisSerializer(analysis)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='confirm-client')
+    def confirm_client(self, request, pk=None):
+        call = self.get_object()
+        analysis = get_object_or_404(CallAnalysis, call=call)
+        draft = analysis.client_draft
+
+        if not draft:
+            return Response({'detail': 'No client draft available.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if call.client:
+            client = call.client
+            if draft.get('name'):
+                client.name = draft['name']
+            if draft.get('language'):
+                lang = draft['language']
+                if lang == 'kz':
+                    lang = 'kk'
+                client.language_hint = lang
+            if draft.get('notes'):
+                tags = client.tags or []
+                if draft['notes'] not in tags:
+                    tags.append(draft['notes'])
+                client.tags = tags
+            client.save()
+        else:
+            phone = draft.get('phone', '')
+            lang = draft.get('language', 'ru')
+            if lang == 'kz':
+                lang = 'kk'
+            client = Client.objects.create(
+                primary_phone=phone,
+                name=draft.get('name', ''),
+                language_hint=lang,
+                tags=[draft['notes']] if draft.get('notes') else [],
+            )
+            call.client = client
+            call.save(update_fields=['client'])
+
+        return Response(ClientSerializer(client).data, status=status.HTTP_200_OK)
