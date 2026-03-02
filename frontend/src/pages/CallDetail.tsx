@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import type { ChangeEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import type { Call, CallAnalysis } from '../api/types';
@@ -26,8 +25,6 @@ export default function CallDetail() {
   const [error, setError] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [applyingDraft, setApplyingDraft] = useState(false);
-  const [uploadingRecording, setUploadingRecording] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchCall = async () => {
     setLoading(true);
@@ -61,25 +58,6 @@ export default function CallDetail() {
       setError('Failed to start analysis');
     } finally {
       setAnalyzing(false);
-    }
-  };
-
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingRecording(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      await api.post(`/api/calls/${id}/recording/`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      await fetchCall();
-    } catch {
-      setError('Failed to upload recording');
-    } finally {
-      setUploadingRecording(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -171,21 +149,7 @@ export default function CallDetail() {
               <AudioPlayer src={call.recording.file} />
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-500 mb-4">No recording uploaded yet</p>
-                <input
-                  type="file"
-                  accept="audio/mpeg,audio/mp3,.mp3"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingRecording}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors disabled:opacity-60"
-                >
-                  {uploadingRecording ? 'Uploading...' : 'Upload Recording (MP3)'}
-                </button>
+                <p className="text-gray-500">No recording uploaded</p>
               </div>
             )}
           </div>
