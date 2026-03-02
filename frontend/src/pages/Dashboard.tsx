@@ -85,7 +85,7 @@ export default function Dashboard() {
               <StatCard label="Total Calls" value={overview.total_calls} />
               <StatCard label="Completed Calls" value={overview.done_calls} />
               <StatCard label="Avg Script Score" value={`${overview.avg_script_score ?? 0}%`} />
-              <StatCard label="Categories" value={overview.categories_count} />
+              <StatCard label="Categories" value={overview.categories_count ?? 0} />
             </div>
           )}
 

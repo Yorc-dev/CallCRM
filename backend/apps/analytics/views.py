@@ -1,4 +1,5 @@
 from django.db.models import Count, Avg, Q
+from django.db.models.functions import TruncDate
 from django.utils.dateparse import parse_date
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -31,11 +32,25 @@ class OverviewView(APIView):
         failed_calls = qs.filter(status='failed').count()
         avg_duration = qs.aggregate(avg=Avg('duration_sec'))['avg']
 
+        calls_per_day = list(
+            qs.annotate(date=TruncDate('call_datetime'))
+            .values('date')
+            .annotate(count=Count('id'))
+            .order_by('date')
+            .values('date', 'count')
+        )
+        # Serialize dates to strings
+        calls_per_day = [
+            {'date': str(row['date']), 'count': row['count']}
+            for row in calls_per_day
+        ]
+
         return Response({
             'total_calls': total_calls,
             'done_calls': done_calls,
             'failed_calls': failed_calls,
             'avg_duration_sec': round(avg_duration, 1) if avg_duration else None,
+            'calls_per_day': calls_per_day,
         })
 
 
