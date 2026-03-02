@@ -128,19 +128,6 @@ export default function Dashboard() {
           {/* Operator Performance */}
           {operators.length > 0 && (
             <>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                <h3 className="text-base font-semibold text-gray-800 mb-4">Avg Script Score Per Operator</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={operators} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="username" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
-                    <Tooltip />
-                    <Bar dataKey="avg_script_score" name="Avg Score" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="text-base font-semibold text-gray-800">Operator Performance Table</h3>
