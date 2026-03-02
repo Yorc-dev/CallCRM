@@ -100,6 +100,10 @@ npm run dev           # http://localhost:5173
 | `CELERY_BROKER_URL` | `redis://localhost:6379/0` | Redis broker URL |
 | `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
 | `MEDIA_ROOT` | `./media` | Local path for uploaded files |
+| `OPENAI_API_KEY` | _(empty)_ | OpenAI API key — enables real transcription & AI insights |
+| `OPENAI_TRANSCRIBE_MODEL` | `whisper-1` | Whisper model for speech-to-text |
+| `OPENAI_CHAT_MODEL` | `gpt-4o-mini` | Chat model for structured insights |
+| `OPENAI_TIMEOUT_SEC` | `120` | Request timeout in seconds for OpenAI API calls |
 
 ### Frontend
 
@@ -247,7 +251,8 @@ record is accessible via `GET /api/calls/{id}/` → `client_detail`.
 ## Extending the System
 
 ### Swap ASR (Speech Recognition)
-Edit `apps/calls/analyzer.py` → `PlaceholderAnalyzer.get_transcript()`. Replace with a call to your ASR service (Whisper, Google Speech, etc.).
+When `OPENAI_API_KEY` is set, the system automatically uses `OpenAIAnalyzer` (Whisper for transcription, GPT for insights). Without it, the keyword-based `PlaceholderAnalyzer` is used instead.
+To use a different ASR provider, implement a class with the same `analyze(call, language_hint)` interface and wire it into `apps/calls/tasks.py`.
 
 ### Swap LLM (Summary/Coaching)
 Edit `apps/calls/analyzer.py` → `PlaceholderAnalyzer.generate_summary()` and `generate_coaching()`. Replace with calls to OpenAI, Anthropic, or any LLM API.
