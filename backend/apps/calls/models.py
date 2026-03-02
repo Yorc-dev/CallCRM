@@ -89,6 +89,7 @@ class CallAnalysis(models.Model):
     client_draft = models.JSONField(default=dict)
     operator_coaching = models.JSONField(default=dict)
     script_compliance = models.JSONField(default=dict)
+    script_score = models.FloatField(null=True, blank=True)
     model_info = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
