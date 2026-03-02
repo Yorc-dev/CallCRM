@@ -176,11 +176,18 @@ curl -X POST http://localhost:8000/api/calls/1/confirm-client/ \
 # Applies client_draft fields to the linked Client record
 ```
 
-### 8. View Dashboard Analytics (chief/admin)
+### 8. View Analytics (chief/admin)
 ```bash
 curl "http://localhost:8000/api/analytics/overview?from=2024-01-01&to=2024-12-31" \
   -H "Authorization: Bearer $TOKEN"
+# Returns total_calls, done_calls, failed_calls, avg_duration_sec, calls_per_day[]
+
+curl "http://localhost:8000/api/analytics/operators?from=2024-01-01&to=2024-12-31" \
+  -H "Authorization: Bearer $TOKEN"
+# Returns per-operator call counts and avg duration
 ```
+
+The React UI exposes an **Аналитика** page (`/analytics`) in the left sidebar, visible only to `chief` and `admin` roles. It shows a date-range filter (default: last 7 days), total/completed/failed call counts, a daily bar chart, and an operator statistics table.
 
 ## One-Shot Audio Intake (no pre-known client)
 
@@ -233,7 +240,7 @@ record is accessible via `GET /api/calls/{id}/` → `client_detail`.
 | GET | `/api/calls/{id}/analysis/` | Get analysis | All roles |
 | POST | `/api/calls/{id}/confirm-client/` | Apply draft | All roles |
 | POST | `/api/intake/audio/` | One-shot MP3 intake | All roles |
-| GET | `/api/analytics/overview` | Overview stats | Chief/Admin |
+| GET | `/api/analytics/overview` | Overview stats + daily series | Chief/Admin |
 | GET | `/api/analytics/operators` | Operator stats | Chief/Admin |
 | GET | `/api/analytics/categories` | Category breakdown | Chief/Admin |
 

@@ -57,16 +57,24 @@ export interface Call {
 export interface AnalyticsOverview {
   total_calls: number;
   done_calls: number;
-  avg_script_score: number;
-  categories_count: number;
+  failed_calls: number;
+  avg_duration_sec: number | null;
   calls_per_day: { date: string; count: number }[];
+  // legacy/optional fields used by Dashboard
+  avg_script_score?: number;
+  categories_count?: number;
 }
 
 export interface AnalyticsOperator {
   operator_id: number;
   username: string;
+  full_name: string;
   total_calls: number;
-  avg_script_score: number;
+  done_calls: number;
+  failed_calls: number;
+  avg_duration_sec: number | null;
+  // legacy/optional field used by Dashboard
+  avg_script_score?: number;
 }
 
 export interface AnalyticsCategory {
