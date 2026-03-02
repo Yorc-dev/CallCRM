@@ -60,3 +60,31 @@ class UploadRecordingTestCase(TestCase):
         url = reverse('call-upload-recording', kwargs={'pk': self.call.pk})
         response = self.client_api.post(url, {}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_call_detail_includes_recording(self):
+        """Call detail endpoint should include recording object when recording exists."""
+        # Upload a recording first
+        upload_url = reverse('call-upload-recording', kwargs={'pk': self.call.pk})
+        mp3 = self._make_mp3_file()
+        mp3.name = 'test_call.mp3'
+        self.client_api.post(upload_url, {'file': mp3}, format='multipart')
+
+        # Fetch call detail
+        detail_url = reverse('call-detail', kwargs={'pk': self.call.pk})
+        response = self.client_api.get(detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['has_recording'])
+        self.assertIsNotNone(response.data['recording'])
+        self.assertIn('id', response.data['recording'])
+        self.assertIn('file', response.data['recording'])
+        self.assertIn('uploaded_at', response.data['recording'])
+
+    def test_call_detail_recording_null_when_no_recording(self):
+        """Call detail endpoint should include recording=null when no recording exists."""
+        detail_url = reverse('call-detail', kwargs={'pk': self.call.pk})
+        response = self.client_api.get(detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['has_recording'])
+        self.assertIsNone(response.data['recording'])
