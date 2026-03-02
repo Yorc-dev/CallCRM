@@ -182,6 +182,41 @@ curl "http://localhost:8000/api/analytics/overview?from=2024-01-01&to=2024-12-31
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## One-Shot Audio Intake (no pre-known client)
+
+Upload an MP3 in a single request — no need to create a Client or Call first.
+The system creates a Call + Recording immediately and queues background analysis,
+which will automatically extract client details and link a Client record.
+
+```bash
+curl -X POST http://localhost:8000/api/intake/audio/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@/path/to/call.mp3" \
+  -F "language_hint=ru" \
+  -F "call_datetime=2024-01-15T10:00:00Z" \
+  -F "duration_sec=180"
+# Returns:
+# {
+#   "call": { "id": 42, "status": "uploaded", ... },
+#   "recording": { "id": 7, "sha256": "...", ... },
+#   "analysis_queued": true
+# }
+```
+
+### Fields
+
+| Field | Required | Default | Notes |
+|-------|----------|---------|-------|
+| `file` | ✓ | — | MP3 audio file |
+| `language_hint` | | `ru` | `ru`, `kk`, or `kz` (alias → `kk`) |
+| `call_datetime` | | now | ISO-8601 datetime |
+| `duration_sec` | | null | integer seconds |
+| `script_version` | | `v1` | script template version |
+
+After analysis completes (`status=done`), `GET /api/calls/{id}/analysis/` returns the
+full transcript, summary, script compliance, and operator coaching.  The linked Client
+record is accessible via `GET /api/calls/{id}/` → `client_detail`.
+
 ## API Reference
 
 | Method | Endpoint | Description | Auth |
@@ -197,6 +232,7 @@ curl "http://localhost:8000/api/analytics/overview?from=2024-01-01&to=2024-12-31
 | POST | `/api/calls/{id}/analyze/` | Start analysis | All roles |
 | GET | `/api/calls/{id}/analysis/` | Get analysis | All roles |
 | POST | `/api/calls/{id}/confirm-client/` | Apply draft | All roles |
+| POST | `/api/intake/audio/` | One-shot MP3 intake | All roles |
 | GET | `/api/analytics/overview` | Overview stats | Chief/Admin |
 | GET | `/api/analytics/operators` | Operator stats | Chief/Admin |
 | GET | `/api/analytics/categories` | Category breakdown | Chief/Admin |

@@ -1,10 +1,13 @@
 import hashlib
 
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, generics, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
 
 from .models import Client, Call, CallRecording, CallAnalysis
 from .serializers import (
@@ -140,3 +143,88 @@ class CallViewSet(viewsets.ModelViewSet):
             call.save(update_fields=['client'])
 
         return Response(ClientSerializer(client).data, status=status.HTTP_200_OK)
+
+
+class AudioIntakeView(APIView):
+    """
+    POST /api/intake/audio/
+
+    Accept an MP3 recording with no pre-known client info.  Creates a Call and
+    CallRecording immediately, then enqueues background analysis which will
+    auto-create/link a Client from the extracted draft fields.
+
+    Fields (multipart/form-data):
+      - file            (required)  MP3 audio
+      - language_hint   (optional)  'ru' (default), 'kk', or 'kz' (alias for 'kk')
+      - call_datetime   (optional)  ISO-8601 string; defaults to now
+      - duration_sec    (optional)  integer
+      - script_version  (optional)  default 'v1'
+    """
+
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        language_hint = request.data.get('language_hint', 'ru')
+        if language_hint == 'kz':
+            language_hint = 'kk'
+
+        call_datetime_str = request.data.get('call_datetime', '')
+        if call_datetime_str:
+            call_datetime = parse_datetime(call_datetime_str)
+            if call_datetime is None:
+                return Response(
+                    {'detail': 'Invalid call_datetime format. Use ISO-8601 (e.g. 2024-01-15T10:00:00Z).'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            call_datetime = timezone.now()
+
+        duration_sec = request.data.get('duration_sec')
+        if duration_sec is not None:
+            try:
+                duration_sec = int(duration_sec)
+            except (ValueError, TypeError):
+                duration_sec = None
+
+        script_version = request.data.get('script_version', 'v1')
+
+        # Create Call with status=uploaded
+        call = Call.objects.create(
+            operator=request.user,
+            call_datetime=call_datetime,
+            duration_sec=duration_sec,
+            status=Call.STATUS_UPLOADED,
+        )
+
+        # Compute sha256 and create Recording
+        sha256 = hashlib.sha256()
+        for chunk in file_obj.chunks():
+            sha256.update(chunk)
+        sha256_hex = sha256.hexdigest()
+        file_obj.seek(0)
+
+        recording = CallRecording.objects.create(
+            call=call,
+            file=file_obj,
+            mime_type=file_obj.content_type or 'audio/mpeg',
+            size_bytes=file_obj.size,
+            sha256=sha256_hex,
+        )
+
+        # Enqueue background analysis
+        analyze_call_task.delay(call.id, language_hint=language_hint, script_version=script_version)
+
+        return Response(
+            {
+                'call': CallSerializer(call, context={'request': request}).data,
+                'recording': CallRecordingSerializer(recording, context={'request': request}).data,
+                'analysis_queued': True,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
