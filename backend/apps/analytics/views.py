@@ -45,12 +45,17 @@ class OverviewView(APIView):
             for row in calls_per_day
         ]
 
+        avg_script_score = qs.filter(
+            status='done', analysis__script_score__isnull=False
+        ).aggregate(avg=Avg('analysis__script_score'))['avg']
+
         return Response({
             'total_calls': total_calls,
             'done_calls': done_calls,
             'failed_calls': failed_calls,
             'avg_duration_sec': round(avg_duration, 1) if avg_duration else None,
             'calls_per_day': calls_per_day,
+            'avg_script_score': int(round(avg_script_score * 100)) if avg_script_score is not None else None,
         })
 
 
@@ -67,6 +72,10 @@ class OperatorsView(APIView):
                 done=Count('id', filter=Q(status='done')),
                 failed=Count('id', filter=Q(status='failed')),
                 avg_duration=Avg('duration_sec'),
+                avg_script_score=Avg(
+                    'analysis__script_score',
+                    filter=Q(status='done', analysis__script_score__isnull=False),
+                ),
             )
             .order_by('-total')
         )
@@ -81,6 +90,7 @@ class OperatorsView(APIView):
                 'done_calls': row['done'],
                 'failed_calls': row['failed'],
                 'avg_duration_sec': round(row['avg_duration'], 1) if row['avg_duration'] else None,
+                'avg_script_score': int(round(row['avg_script_score'] * 100)) if row['avg_script_score'] is not None else None,
             })
 
         return Response(results)
