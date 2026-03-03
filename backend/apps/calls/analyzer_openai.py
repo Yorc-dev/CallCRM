@@ -1,12 +1,19 @@
 import json
 import re
+from urllib import response
 
 from django.conf import settings
 
 from .models import ScriptTemplate, CallRecording
+from django.utils.text import get_valid_filename
 
+import os
 
 class OpenAIAnalyzer:
+    def __init__(self):
+        self.transcribe_model = os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
+        self.chat_model = os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+        self.timeout_sec = int(os.environ.get("OPENAI_TIMEOUT_SEC", "60"))
     """
     Analyzer that uses OpenAI APIs for transcription (Whisper) and structured
     insights (chat completion).  Falls back gracefully if any optional fields
@@ -40,54 +47,92 @@ class OpenAIAnalyzer:
             timeout=settings.OPENAI_TIMEOUT_SEC,
         )
 
-    def _transcribe(self, openai_client, recording: CallRecording, language: str) -> str:
-        """Send audio file to Whisper and return transcript text."""
-        with recording.file.open('rb') as audio_fp:
-            response = openai_client.audio.transcriptions.create(
-                model=settings.OPENAI_TRANSCRIBE_MODEL,
-                file=audio_fp,
-                language=language,
-                response_format='text',
+
+    def _transcribe(self,openai_client, recording, language_hint: str) -> str:
+        filename = get_valid_filename(recording.file.name.split("/")[-1] or "audio.mp3")
+
+        with recording.file.open("rb") as f:
+            resp = openai_client.audio.transcriptions.create(
+                model=self.transcribe_model,
+                file=(filename, f, recording.mime_type or "audio/mpeg"),
+                language=language_hint if language_hint in ("ru", "kk") else None,
             )
-        # response is a plain string when response_format='text'
-        return response if isinstance(response, str) else str(response)
+
+        return getattr(resp, "text", None) or resp["text"]
 
     def _generate_insights(self, openai_client, transcript: str, language: str) -> tuple:
-        """Call chat completion to produce structured analysis."""
-        system_prompt = (
-            "You are an expert call-center quality analyst. "
-            "Analyze the provided call transcript and return a JSON object with the following keys:\n"
-            "  summary_short  – one sentence (string)\n"
-            "  summary_structured – object with keys: category (string), key_phrases (array of strings), "
-            "topic (string)\n"
-            "  category – string label for the call topic (e.g. 'complaint', 'inquiry', 'sales')\n"
-            "  operator_coaching – object with keys: advice (array of strings), score (integer 0-100)\n"
-            "  client_draft – object with keys: name (string), phone (string), "
-            f"language ('{language}'), notes (string)\n"
-            "Return ONLY the JSON object, no additional text."
-        )
+        """Call chat completion to produce structured analysis + dialogue transcript."""
+        system_prompt = f"""
+        You are an expert call-center QA analyst and transcript editor.
+
+        You will be given a raw call transcript (may be messy, may contain no speaker labels).
+        Your job:
+        1) Convert it into a CLEAN DIALOGUE between two speakers:
+        - "operator" (call-center agent)
+        - "client" (customer)
+        If speaker is unclear, choose the most likely one. Do NOT invent facts; only reformat/clean.
+        2) Produce structured insights for CRM.
+
+        Return ONLY a valid JSON object that matches this schema:
+
+        {{
+        "transcript_dialogue": [
+            {{
+            "speaker": "operator" | "client",
+            "text": "string"
+            }}
+        ],
+        "transcript_text": "string",  // optional: cleaned full text without timestamps (can be joined from dialogue)
+        "summary_short": "string",
+        "summary_structured": {{
+            "category": "string",
+            "topic": "string",
+            "key_phrases": ["string"]
+        }},
+        "category": "string",
+        "operator_coaching": {{
+            "advice": ["string"],
+            "score": 0
+        }},
+        "client_draft": {{
+            "name": "string",
+            "phone": "string",
+            "language": "{language}",
+            "notes": "string"
+        }}
+        }}
+
+        Rules:
+        - Output JSON only (no markdown, no commentary).
+        - Keep language of the content consistent with the call (Russian/Kazakh). Do not translate unless the transcript is mixed.
+        - "operator_coaching.score" must be an integer 0..100.
+        - If some fields are unknown, return empty string "" or empty array [].
+        - Do NOT include any additional keys outside the schema.
+        """.strip()
+
         response = openai_client.chat.completions.create(
             model=settings.OPENAI_CHAT_MODEL,
             messages=[
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': transcript},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": transcript},
             ],
-            response_format={'type': 'json_object'},
+            response_format={"type": "json_object"},
         )
+
         content = response.choices[0].message.content
         try:
             parsed = json.loads(content)
         except (json.JSONDecodeError, TypeError):
             parsed = {}
+
         usage = response.usage
         return parsed, {
-            'prompt_tokens': usage.prompt_tokens if usage else None,
-            'completion_tokens': usage.completion_tokens if usage else None,
+            "prompt_tokens": usage.prompt_tokens if usage else None,
+            "completion_tokens": usage.completion_tokens if usage else None,
         }
-
-    # ------------------------------------------------------------------
-    # Script compliance (deterministic, same logic as PlaceholderAnalyzer)
-    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Script compliance (deterministic, same logic as PlaceholderAnalyzer)
+        # ------------------------------------------------------------------
 
     def _compute_script_compliance(self, transcript: str, language_hint: str):
         template = (
