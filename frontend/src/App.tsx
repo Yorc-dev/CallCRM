@@ -9,6 +9,7 @@ import ClientsList from './pages/ClientsList';
 import ClientDetail from './pages/ClientDetail';
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
+import Directory from './pages/Directory';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
               <Route path="/calls/:id" element={<CallDetail />} />
               <Route path="/clients" element={<ClientsList />} />
               <Route path="/clients/:id" element={<ClientDetail />} />
+              <Route path="/directory" element={<Directory />} />
             </Route>
           </Route>
 

@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/', include('apps.calls.urls')),
     path('api/analytics/', include('apps.analytics.urls')),
     path('api/twilio/', include('apps.telephony_twilio.urls')),
+    path('api/assistant/', include('apps.assistant.urls')),
 ] 
 
 
