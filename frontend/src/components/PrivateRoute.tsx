@@ -6,8 +6,9 @@ interface PrivateRouteProps {
 }
 
 export default function PrivateRoute({ allowedRoles }: PrivateRouteProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
+  if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/calls" replace />;

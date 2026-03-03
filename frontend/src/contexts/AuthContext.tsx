@@ -10,6 +10,7 @@ interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('refresh_token');
       }
     }
+    setIsLoading(false);
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
@@ -66,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: user !== null, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: user !== null, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

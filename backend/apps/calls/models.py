@@ -93,6 +93,7 @@ class CallAnalysis(models.Model):
     client_draft = models.JSONField(default=dict)
     operator_coaching = models.JSONField(default=dict)
     script_compliance = models.JSONField(default=dict)
+    transcript_dialogue = models.JSONField(default=list, blank=True)
     script_score = models.FloatField(null=True, blank=True)
     category = models.CharField(max_length=100, blank=True, default='')
     model_info = models.JSONField(default=dict)

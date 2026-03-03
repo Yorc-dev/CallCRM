@@ -99,3 +99,28 @@ class CallsFilterTestCase(TestCase):
         data = response.data if isinstance(response.data, list) else response.data.get('results', [])
         # operator1 only sees own calls; bob's calls not visible
         self.assertEqual(len(data), 0)
+
+    def test_filter_by_status(self):
+        self.client_api.force_authenticate(user=self.chief)
+        self.call1.status = Call.STATUS_DONE
+        self.call1.save(update_fields=['status'])
+        response = self.client_api.get(self.url, {'status': 'done'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        ids = [item['id'] for item in data]
+        self.assertIn(self.call1.id, ids)
+        self.assertNotIn(self.call2.id, ids)
+
+    def test_filter_by_date_range(self):
+        import datetime
+        self.client_api.force_authenticate(user=self.chief)
+        # call1 has call_datetime=now; set call2 to a week ago
+        self.call2.call_datetime = timezone.now() - datetime.timedelta(days=7)
+        self.call2.save(update_fields=['call_datetime'])
+        today = timezone.now().date().isoformat()
+        response = self.client_api.get(self.url, {'from': today, 'to': today})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        ids = [item['id'] for item in data]
+        self.assertIn(self.call1.id, ids)
+        self.assertNotIn(self.call2.id, ids)

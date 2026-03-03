@@ -112,6 +112,7 @@ class PlaceholderAnalyzer:
             'name': extracted_name or (client.name if client else ''),
             'phone': extracted_phone or (client.primary_phone if client else ''),
             'language': language_hint,
+            'gender': 'unknown',
             'notes': f'Auto-generated from call {call.id}',
         }
 
@@ -125,10 +126,12 @@ class PlaceholderAnalyzer:
         return {
             'asr_language': language_hint,
             'transcript_text': transcript,
+            'transcript_dialogue': [],
             'summary_short': summary_short,
             'summary_structured': summary_structured,
             'client_draft': client_draft,
             'operator_coaching': operator_coaching,
             'script_compliance': script_compliance,
+            'script_score': script_score,
             'model_info': model_info,
         }

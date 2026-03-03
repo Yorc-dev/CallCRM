@@ -55,7 +55,7 @@ class OverviewView(APIView):
             'failed_calls': failed_calls,
             'avg_duration_sec': round(avg_duration, 1) if avg_duration else None,
             'calls_per_day': calls_per_day,
-            'avg_script_score': int(round(avg_script_score * 100)) if avg_script_score is not None else None,
+            'avg_script_score': min(int(round(avg_script_score * 100)), 100) if avg_script_score is not None else None,
         })
 
 
@@ -90,7 +90,7 @@ class OperatorsView(APIView):
                 'done_calls': row['done'],
                 'failed_calls': row['failed'],
                 'avg_duration_sec': round(row['avg_duration'], 1) if row['avg_duration'] else None,
-                'avg_script_score': int(round(row['avg_script_score'] * 100)) if row['avg_script_score'] is not None else None,
+                'avg_script_score': min(int(round(row['avg_script_score'] * 100)), 100) if row['avg_script_score'] is not None else None,
             })
 
         return Response(results)

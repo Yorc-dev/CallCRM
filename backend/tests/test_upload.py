@@ -88,3 +88,19 @@ class UploadRecordingTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data['has_recording'])
         self.assertIsNone(response.data['recording'])
+
+    def test_upload_recording_saves_duration(self):
+        """Providing duration_sec when uploading should persist it on the call."""
+        url = reverse('call-upload-recording', kwargs={'pk': self.call.pk})
+        mp3 = self._make_mp3_file()
+        mp3.name = 'test_call.mp3'
+
+        response = self.client_api.post(
+            url,
+            {'file': mp3, 'duration_sec': '120'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.duration_sec, 120)

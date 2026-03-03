@@ -48,7 +48,7 @@ class OpenAIAnalyzer:
         )
 
 
-    def _transcribe(self,openai_client, recording, language_hint: str) -> str:
+    def _transcribe(self, openai_client, recording, language_hint: str) -> str:
         filename = get_valid_filename(recording.file.name.split("/")[-1] or "audio.mp3")
 
         with recording.file.open("rb") as f:
@@ -58,6 +58,8 @@ class OpenAIAnalyzer:
                 language=language_hint if language_hint in ("ru", "kk") else None,
             )
 
+        if isinstance(resp, str):
+            return resp
         return getattr(resp, "text", None) or resp["text"]
 
     def _generate_insights(self, openai_client, transcript: str, language: str) -> tuple:
@@ -98,6 +100,7 @@ class OpenAIAnalyzer:
             "name": "string",
             "phone": "string",
             "language": "{language}",
+            "gender": "male" | "female" | "unknown",
             "notes": "string"
         }}
         }}
@@ -164,7 +167,7 @@ class OpenAIAnalyzer:
                     else:
                         missing_required.append(step.key)
 
-        script_score = (found_steps / total_required * 100) if total_required > 0 else 0.0
+        script_score = (found_steps / total_required) if total_required > 0 else 0.0
         return script_compliance, round(script_score, 2), template, missing_required
 
     # ------------------------------------------------------------------
@@ -212,6 +215,7 @@ class OpenAIAnalyzer:
                 client_draft['name'] = call.client.name
         if not client_draft.get('phone') and call.client:
             client_draft['phone'] = call.client.primary_phone
+        client_draft.setdefault('gender', 'unknown')
         client_draft.setdefault('language', language_hint)
         client_draft.setdefault('notes', f'Auto-generated from call {call.id}')
 
@@ -228,6 +232,7 @@ class OpenAIAnalyzer:
         return {
             'asr_language': language_hint,
             'transcript_text': transcript,
+            'transcript_dialogue': insights.get('transcript_dialogue', []),
             'summary_short': insights.get('summary_short', ''),
             'summary_structured': insights.get('summary_structured', {}),
             'category': insights.get('category', ''),
