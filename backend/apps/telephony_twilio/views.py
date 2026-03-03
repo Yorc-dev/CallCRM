@@ -243,6 +243,7 @@ class TwilioRecordingCallbackView(APIView):
         call_sid = request.POST.get('CallSid', '')
         recording_sid = request.POST.get('RecordingSid', '')
         recording_status = request.POST.get('RecordingStatus', '')
+        recording_duration = request.POST.get('RecordingDuration') or request.POST.get('CallDuration')
 
         if recording_status and recording_status != 'completed':
             # Not yet ready; ignore
@@ -295,7 +296,14 @@ class TwilioRecordingCallbackView(APIView):
                 )
 
                 call.status = Call.STATUS_UPLOADED
-                call.save(update_fields=['status'])
+                twilio_update_fields = ['status']
+                if recording_duration is not None:
+                    try:
+                        call.duration_sec = int(recording_duration)
+                        twilio_update_fields.append('duration_sec')
+                    except (ValueError, TypeError):
+                        pass
+                call.save(update_fields=twilio_update_fields)
 
                 language_hint = _get_language_hint(call)
                 analyze_call_task.delay(call.pk, language_hint=language_hint)

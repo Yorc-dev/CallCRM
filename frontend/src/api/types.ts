@@ -29,6 +29,7 @@ export interface CallAnalysis {
   id: number;
   call: number;
   transcript_text?: string;
+  transcript_dialogue?: { speaker: 'operator' | 'client'; text: string }[];
   summary_short?: string;
   summary_structured?: Record<string, unknown>;
   script_compliance?: ScriptCompliance;

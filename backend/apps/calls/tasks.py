@@ -45,6 +45,7 @@ def analyze_call(self, call_id, language_hint='ru', script_version='v1'):
         lang = draft.get('language', 'ru')
         if lang == 'kz':
             lang = 'kk'
+        gender = draft.get('gender', 'unknown')
         notes = (draft.get('notes') or '').strip()
 
         if phone:
@@ -56,6 +57,8 @@ def analyze_call(self, call_id, language_hint='ru', script_version='v1'):
             client.name = name
         if lang in ('ru', 'kk'):
             client.language_hint = lang
+        if gender in ('male', 'female', 'unknown'):
+            client.gender = gender
         if notes:
             tags = list(client.tags or [])
             if notes not in tags:

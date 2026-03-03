@@ -3,7 +3,6 @@ import type { FormEvent, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import type { Call } from '../api/types';
-import { useAuth } from '../contexts/AuthContext';
 
 const STATUS_COLORS: Record<string, string> = {
   new: 'bg-gray-500 text-gray-100',
@@ -26,9 +25,6 @@ function formatDateTime(dt: string) {
 
 export default function CallsList() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isManager = user?.role === 'chief' || user?.role === 'admin';
-
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,7 +33,6 @@ export default function CallsList() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [operatorFilter, setOperatorFilter] = useState('');
   const [clientNameFilter, setClientNameFilter] = useState('');
   const [operatorNameFilter, setOperatorNameFilter] = useState('');
 
@@ -75,7 +70,6 @@ export default function CallsList() {
       if (from) params.from = from;
       if (to) params.to = to;
       if (statusFilter) params.status = statusFilter;
-      if (isManager && operatorFilter) params.operator = operatorFilter;
       if (debouncedClientName) params.client_name = debouncedClientName;
       if (debouncedOperatorName) params.operator_name = debouncedOperatorName;
       const { data } = await api.get('/api/calls/', { params });
@@ -90,7 +84,7 @@ export default function CallsList() {
   useEffect(() => {
     fetchCalls();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, statusFilter, operatorFilter, debouncedClientName, debouncedOperatorName]);
+  }, [from, to, statusFilter, debouncedClientName, debouncedOperatorName]);
 
   const handleCreateCall = async (e: FormEvent) => {
     e.preventDefault();
@@ -121,6 +115,7 @@ export default function CallsList() {
       setShowUploadModal(false);
       setUploadFile(null);
       setUploadLang('ru');
+      await fetchCalls();
       navigate(`/calls/${data.call.id}`);
     } catch {
       setError('Failed to upload recording');
@@ -173,14 +168,6 @@ export default function CallsList() {
             <option value="failed">Failed</option>
           </select>
         </div>
-        {isManager && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">Operator ID</label>
-            <input type="number" value={operatorFilter} onChange={(e) => setOperatorFilter(e.target.value)}
-              placeholder="Operator ID"
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 w-32" />
-          </div>
-        )}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-medium">Client name</label>
           <input type="text" value={clientNameFilter} onChange={(e) => setClientNameFilter(e.target.value)}

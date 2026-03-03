@@ -3,7 +3,7 @@ import hashlib
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_datetime, parse_date
 from rest_framework import viewsets, generics, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -48,6 +48,22 @@ class CallViewSet(viewsets.ModelViewSet):
                 | Q(operator__last_name__icontains=operator_name)
             )
 
+        from_date = self.request.query_params.get('from', '').strip()
+        if from_date:
+            parsed = parse_date(from_date)
+            if parsed:
+                qs = qs.filter(call_datetime__date__gte=parsed)
+
+        to_date = self.request.query_params.get('to', '').strip()
+        if to_date:
+            parsed = parse_date(to_date)
+            if parsed:
+                qs = qs.filter(call_datetime__date__lte=parsed)
+
+        status_filter = self.request.query_params.get('status', '').strip()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
         return qs
 
     def perform_create(self, serializer):
@@ -84,8 +100,17 @@ class CallViewSet(viewsets.ModelViewSet):
             sha256=sha256_hex,
         )
 
+        update_fields = ['status']
+        duration_sec = request.data.get('duration_sec')
+        if duration_sec is not None:
+            try:
+                call.duration_sec = int(duration_sec)
+                update_fields.append('duration_sec')
+            except (ValueError, TypeError):
+                pass
+
         call.status = Call.STATUS_UPLOADED
-        call.save(update_fields=['status'])
+        call.save(update_fields=update_fields)
 
         serializer = CallRecordingSerializer(recording, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -138,6 +163,8 @@ class CallViewSet(viewsets.ModelViewSet):
                 if lang == 'kz':
                     lang = 'kk'
                 client.language_hint = lang
+            if draft.get('gender') in ('male', 'female', 'unknown'):
+                client.gender = draft['gender']
             if draft.get('notes'):
                 tags = client.tags or []
                 if draft['notes'] not in tags:
@@ -145,16 +172,24 @@ class CallViewSet(viewsets.ModelViewSet):
                 client.tags = tags
             client.save()
         else:
-            phone = draft.get('phone', '')
+            phone = draft.get('phone', '').strip()
             lang = draft.get('language', 'ru')
             if lang == 'kz':
                 lang = 'kk'
-            client = Client.objects.create(
-                primary_phone=phone,
-                name=draft.get('name', ''),
-                language_hint=lang,
-                tags=[draft['notes']] if draft.get('notes') else [],
-            )
+            gender = draft.get('gender', 'unknown')
+            if phone:
+                client, created = Client.objects.get_or_create(primary_phone=phone)
+            else:
+                created = True
+                client = Client.objects.create(primary_phone='')
+            if created:
+                client.language_hint = lang
+                client.tags = [draft['notes']] if draft.get('notes') else []
+            if draft.get('name'):
+                client.name = draft['name']
+            if gender in ('male', 'female', 'unknown'):
+                client.gender = gender
+            client.save()
             call.client = client
             call.save(update_fields=['client'])
 

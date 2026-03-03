@@ -148,14 +148,14 @@ class OpenAIAnalyzerTest(TestCase):
         self.assertEqual(result['category'], 'billing')
 
     def test_analyze_populates_script_score(self):
-        """transcript with both greeting and closing keywords → score 100."""
+        """transcript with both greeting and closing keywords → score 1.0 (fraction)."""
         recording = _make_recording(self.call)
         transcript = 'Здравствуйте! Всего хорошего, до свидания.'
         analyzer, _ = self._make_analyzer_with_mock(transcript=transcript)
         result = analyzer.analyze(self.call, language_hint='ru')
         self.assertIn('script_score', result)
         self.assertIsInstance(result['script_score'], float)
-        self.assertEqual(result['script_score'], 100.0)
+        self.assertEqual(result['script_score'], 1.0)
 
     def test_script_score_zero_when_no_keywords(self):
         recording = _make_recording(self.call)

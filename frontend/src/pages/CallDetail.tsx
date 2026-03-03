@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import type { Call, CallAnalysis } from '../api/types';
@@ -25,6 +25,7 @@ export default function CallDetail() {
   const [error, setError] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [applyingDraft, setApplyingDraft] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchCall = async () => {
     setLoading(true);
@@ -48,6 +49,25 @@ export default function CallDetail() {
     fetchCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Poll every 3 seconds while call is processing
+  useEffect(() => {
+    if (call?.status === 'processing') {
+      pollRef.current = setInterval(() => fetchCall(), 3000);
+    } else {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call?.status]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -158,7 +178,22 @@ export default function CallDetail() {
         {activeTab === 'transcript' && (
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Transcript</h3>
-            {analysis?.transcript_text ? (
+            {analysis?.transcript_dialogue && analysis.transcript_dialogue.length > 0 ? (
+              <div className="space-y-3">
+                {analysis.transcript_dialogue.map((turn, i) => (
+                  <div key={i} className={`flex ${turn.speaker === 'operator' ? 'justify-start' : 'justify-end'}`}>
+                    <div className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
+                      turn.speaker === 'operator'
+                        ? 'bg-indigo-100 text-indigo-900 rounded-bl-sm'
+                        : 'bg-green-100 text-green-900 rounded-br-sm'
+                    }`}>
+                      <span className="block text-xs font-semibold mb-1 opacity-60 capitalize">{turn.speaker}</span>
+                      {turn.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : analysis?.transcript_text ? (
               <pre className="whitespace-pre-wrap text-sm text-gray-700 bg-gray-50 rounded-md p-4 leading-relaxed">
                 {analysis.transcript_text}
               </pre>
