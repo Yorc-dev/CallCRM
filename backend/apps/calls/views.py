@@ -30,7 +30,10 @@ class CallViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Call.objects.select_related('client', 'operator').prefetch_related('recordings')
+        qs = Call.objects.select_related(
+            'client', 'operator',
+            'operator__employee_profile__company', 'operator__employee_profile__group',
+        ).prefetch_related('recordings')
         if user.role in ('chief', 'admin'):
             qs = qs.all()
         else:

@@ -10,6 +10,10 @@ import ClientDetail from './pages/ClientDetail';
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import Directory from './pages/Directory';
+import Companies from './pages/Companies';
+import Staff from './pages/Staff';
+import Transcriptions from './pages/Transcriptions';
+import Management from './pages/Management';
 
 export default function App() {
   return (
@@ -27,6 +31,9 @@ export default function App() {
               <Route path="/clients" element={<ClientsList />} />
               <Route path="/clients/:id" element={<ClientDetail />} />
               <Route path="/directory" element={<Directory />} />
+              <Route path="/companies" element={<Companies />} />
+              <Route path="/staff" element={<Staff />} />
+              <Route path="/transcriptions" element={<Transcriptions />} />
             </Route>
           </Route>
 
@@ -35,6 +42,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/management" element={<Management />} />
             </Route>
           </Route>
 

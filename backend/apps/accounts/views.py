@@ -16,7 +16,13 @@ class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        return self.request.user
+        # Подтягиваем профиль сотрудника одним запросом, чтобы избежать N+1
+        User = self.request.user.__class__
+        return (
+            User.objects
+            .select_related('employee_profile__company', 'employee_profile__group')
+            .get(pk=self.request.user.pk)
+        )
 
 
 
