@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import api from '../api/client';
+import type { EmployeeProfile } from '../api/types';
 
 interface AuthUser {
   id: number;
   username: string;
   role: 'operator' | 'chief' | 'admin';
+  isEmployee?: boolean;
+  employeeProfile?: EmployeeProfile | null;
 }
 
 interface AuthContextValue {
@@ -32,35 +35,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Подтягивает полный профиль (включая данные сотрудника) с /me/
+  const hydrateProfile = useCallback(async (fallback: AuthUser) => {
+    try {
+      const { data } = await api.get('/api/auth/me/');
+      setUser({
+        id: data.id,
+        username: data.username,
+        role: data.role,
+        isEmployee: data.is_employee,
+        employeeProfile: data.employee_profile ?? null,
+      });
+    } catch {
+      // если /me/ недоступен — оставляем базовые данные из токена
+      setUser(fallback);
+    }
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
       try {
         const payload = parseJwt(token);
-        setUser({
+        const base: AuthUser = {
           id: payload.user_id as number,
           username: payload.username as string,
           role: payload.role as AuthUser['role'],
-        });
+          isEmployee: payload.is_employee as boolean | undefined,
+        };
+        setUser(base);
+        hydrateProfile(base).finally(() => setIsLoading(false));
+        return;
       } catch {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
       }
     }
     setIsLoading(false);
-  }, []);
+  }, [hydrateProfile]);
 
   const login = useCallback(async (username: string, password: string) => {
     const { data } = await api.post('/api/auth/login/', { username, password });
     localStorage.setItem('access_token', data.access);
     localStorage.setItem('refresh_token', data.refresh);
     const payload = parseJwt(data.access);
-    setUser({
+    const base: AuthUser = {
       id: payload.user_id as number,
       username: payload.username as string,
       role: payload.role as AuthUser['role'],
-    });
-  }, []);
+      isEmployee: payload.is_employee as boolean | undefined,
+    };
+    setUser(base);
+    await hydrateProfile(base);
+  }, [hydrateProfile]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('access_token');

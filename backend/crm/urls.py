@@ -10,7 +10,8 @@ urlpatterns = [
     path('api/analytics/', include('apps.analytics.urls')),
     path('api/twilio/', include('apps.telephony_twilio.urls')),
     path('api/assistant/', include('apps.assistant.urls')),
-] 
+    path('api/staff/', include('apps.staff.urls')),
+]
 
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,7 +1,22 @@
+export interface EmployeeProfile {
+  id: number;
+  full_name: string;
+  email: string;
+  company_id: number;
+  company_name: string;
+  group_id: number | null;
+  group_name: string | null;
+  accesses: string[];
+  certificate_url: string | null;
+  certificate_expires_at: string | null;
+}
+
 export interface User {
   id: number;
   username: string;
   role: 'operator' | 'chief' | 'admin';
+  is_employee?: boolean;
+  employee_profile?: EmployeeProfile | null;
 }
 
 export interface Client {
