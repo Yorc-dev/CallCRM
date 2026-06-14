@@ -19,12 +19,8 @@ def analyze_call(self, call_id, language_hint='ru', script_version='v1'):
     CallAnalysis = apps.get_model('calls', 'CallAnalysis')
     Client = apps.get_model('calls', 'Client')
 
-    if settings.OPENAI_API_KEY:
-        from apps.calls.analyzer_openai import OpenAIAnalyzer
-        analyzer = OpenAIAnalyzer()
-    else:
-        from apps.calls.analyzer import PlaceholderAnalyzer
-        analyzer = PlaceholderAnalyzer()
+    from apps.analysis.engine import get_analyzer
+    analyzer = get_analyzer()
 
     call = Call.objects.select_related('client', 'operator').get(pk=call_id)
     call.status = Call.STATUS_PROCESSING

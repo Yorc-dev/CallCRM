@@ -8,7 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 // --------------------------------------------------------------------------- //
 type FieldType =
   | 'text' | 'email' | 'password' | 'number'
-  | 'date' | 'datetime' | 'textarea' | 'select' | 'multiselect';
+  | 'date' | 'datetime' | 'textarea' | 'select' | 'multiselect'
+  | 'boolean' | 'flags';
 
 interface FieldOption { value: string | number; label: string; }
 
@@ -42,7 +43,7 @@ interface Resource {
 }
 
 type Row = Record<string, unknown>;
-type LookupKey = 'companies' | 'groups' | 'employees' | 'records' | 'accesses';
+type LookupKey = 'companies' | 'groups' | 'employees' | 'records' | 'accesses' | 'plans' | 'departments';
 
 function unwrap(data: unknown): Row[] {
   if (Array.isArray(data)) return data as Row[];
@@ -75,18 +76,20 @@ export default function Management() {
 
   // Справочники для динамических select'ов
   const [lookups, setLookups] = useState<Record<LookupKey, Row[]>>({
-    companies: [], groups: [], employees: [], records: [], accesses: [],
+    companies: [], groups: [], employees: [], records: [], accesses: [], plans: [], departments: [],
   });
 
   const loadLookups = useCallback(async () => {
-    const [companies, groups, employees, records, accessesResp] = await Promise.all([
+    const [companies, groups, employees, records, accessesResp, plans, departments] = await Promise.all([
       api.get('/api/staff/companies/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/staff/groups/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/staff/employees/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/staff/transcriptions/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/staff/groups/available-accesses/').then((r) => r.data as Row[]).catch(() => []),
+      api.get('/api/billing/plans/').then((r) => unwrap(r.data)).catch(() => []),
+      api.get('/api/analysis/departments/').then((r) => unwrap(r.data)).catch(() => []),
     ]);
-    setLookups({ companies, groups, employees, records, accesses: accessesResp });
+    setLookups({ companies, groups, employees, records, accesses: accessesResp, plans, departments });
   }, []);
 
   useEffect(() => { loadLookups(); }, [loadLookups]);
@@ -99,10 +102,14 @@ export default function Management() {
       columns: [
         { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
         { key: 'name', label: 'Название' },
-        { key: 'api_key', label: 'API Key', render: (r) => <code className="text-xs">{String(r.api_key).slice(0, 12)}…</code> },
+        { key: 'plan_name', label: 'Пакет', render: (r) => (r.plan_name as string) ?? '—' },
+        { key: 'users', label: 'Польз./лимит', render: (r) => `${r.user_count ?? 0}/${r.max_users ?? '∞'}` },
         { key: 'created_at', label: 'Создана', render: (r) => fmtDate(r.created_at) },
       ],
-      fields: [{ name: 'name', label: 'Название', type: 'text', required: true }],
+      fields: [
+        { name: 'name', label: 'Название', type: 'text', required: true },
+        { name: 'plan', label: 'Тарифный пакет', type: 'select', lookup: 'plans', lookupLabel: (p) => p.name as string },
+      ],
     },
     {
       key: 'employees', endpoint: '/api/staff/employees/', title: 'Сотрудники',
@@ -114,6 +121,7 @@ export default function Management() {
         { key: 'username', label: 'Логин' },
         { key: 'company_name', label: 'Компания' },
         { key: 'group_name', label: 'Группа', render: (r) => (r.group_name as string) ?? '—' },
+        { key: 'department_name', label: 'Отдел', render: (r) => (r.department_name as string) ?? '—' },
         { key: 'certificate_expires_at', label: 'Сертификат до', render: (r) => r.certificate_expires_at ? new Date(r.certificate_expires_at as string).toLocaleDateString('ru-RU') : '—' },
       ],
       fields: [
@@ -123,6 +131,7 @@ export default function Management() {
         { name: 'role', label: 'Роль', type: 'select', options: ROLE_OPTIONS },
         { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
         { name: 'group', label: 'Группа', type: 'select', lookup: 'groups', lookupLabel: (g) => g.name as string },
+        { name: 'department', label: 'Отдел', type: 'select', lookup: 'departments', lookupLabel: (d) => d.name as string },
         { name: 'certificate_expires_at', label: 'Сертификат действует до', type: 'date' },
       ],
     },
@@ -158,22 +167,6 @@ export default function Management() {
       fields: [{ name: 'title', label: 'Категория', type: 'select', required: true, options: CATEGORY_OPTIONS }],
     },
     {
-      key: 'analyses', endpoint: '/api/staff/analyses/', title: 'Анализы',
-      canCreate: true, canEdit: true, canDelete: true,
-      columns: [
-        { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
-        { key: 'employee_name', label: 'Сотрудник' },
-        { key: 'company_name', label: 'Компания' },
-        { key: 'description', label: 'Описание', render: (r) => (r.description as string) || '—' },
-        { key: 'incidents', label: 'Инцидентов', render: (r) => (r.incidents as Row[])?.length ?? 0 },
-        { key: 'record_datetime', label: 'Дата записи', render: (r) => fmtDate(r.record_datetime) },
-      ],
-      fields: [
-        { name: 'record', label: 'Запись', type: 'select', required: true, lookup: 'records', lookupLabel: (r) => `#${r.id} — ${r.employee_name}` },
-        { name: 'description', label: 'Описание', type: 'textarea' },
-      ],
-    },
-    {
       key: 'incidents', endpoint: '/api/staff/incidents/', title: 'Инциденты',
       canCreate: true, canEdit: true, canDelete: true,
       columns: [
@@ -189,6 +182,83 @@ export default function Management() {
         { name: 'analysis', label: 'Анализ (необязательно)', type: 'number' },
         { name: 'start_minutes', label: 'Начало (мин)', type: 'number', required: true },
         { name: 'end_minutes', label: 'Конец (мин)', type: 'number', required: true },
+      ],
+    },
+    {
+      key: 'plans', endpoint: '/api/billing/plans/', title: 'Пакеты',
+      canCreate: isAdmin, canEdit: isAdmin, canDelete: isAdmin,
+      columns: [
+        { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
+        { key: 'name', label: 'Название' },
+        { key: 'max_users', label: 'Макс. польз.', render: (r) => (r.max_users != null ? String(r.max_users) : '∞') },
+        { key: 'price', label: 'Цена' },
+        { key: 'company_count', label: 'Компаний' },
+        { key: 'is_active', label: 'Активен', render: (r) => (r.is_active ? 'Да' : 'Нет') },
+      ],
+      fields: [
+        { name: 'name', label: 'Название', type: 'text', required: true },
+        { name: 'description', label: 'Описание', type: 'textarea' },
+        { name: 'max_users', label: 'Макс. пользователей (пусто = ∞)', type: 'number' },
+        { name: 'price', label: 'Цена', type: 'number' },
+        { name: 'features', label: 'Функции пакета', type: 'flags', options: [
+          { value: 'analytics', label: 'Аналитика' },
+          { value: 'dynamic_prompts', label: 'Динамические промпты' },
+        ] },
+        { name: 'is_active', label: 'Активен', type: 'boolean' },
+      ],
+    },
+    {
+      key: 'departments', endpoint: '/api/analysis/departments/', title: 'Отделы',
+      canCreate: true, canEdit: true, canDelete: true,
+      columns: [
+        { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
+        { key: 'name', label: 'Название' },
+        { key: 'company_name', label: 'Компания' },
+        { key: 'employee_count', label: 'Сотрудников' },
+        { key: 'is_active', label: 'Активен', render: (r) => (r.is_active ? 'Да' : 'Нет') },
+      ],
+      fields: [
+        { name: 'name', label: 'Название отдела', type: 'text', required: true },
+        { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
+        { name: 'description', label: 'Описание', type: 'textarea' },
+        { name: 'is_active', label: 'Активен', type: 'boolean' },
+      ],
+    },
+    {
+      key: 'analysis_settings', endpoint: '/api/analysis/settings/', title: 'Настройки анализа',
+      canCreate: true, canEdit: true, canDelete: true,
+      columns: [
+        { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
+        { key: 'company_name', label: 'Компания' },
+        { key: 'enabled', label: 'AI-анализ', render: (r) => (r.enabled ? 'Включён' : 'Выключен') },
+      ],
+      fields: [
+        { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
+        { name: 'enabled', label: 'Включить AI-анализ разговоров', type: 'boolean' },
+      ],
+    },
+    {
+      key: 'criteria', endpoint: '/api/analysis/criteria/', title: 'Критерии (промпты)',
+      canCreate: true, canEdit: true, canDelete: true,
+      columns: [
+        { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
+        { key: 'name', label: 'Критерий' },
+        { key: 'scope', label: 'Применять к', render: (r) =>
+          (r.department_name as string) ? `Отдел: ${r.department_name}`
+          : (r.group_name as string) ? `Группа: ${r.group_name}`
+          : 'Все' },
+        { key: 'company_name', label: 'Компания' },
+        { key: 'enabled', label: 'Вкл', render: (r) => (r.enabled ? '✓' : '—') },
+        { key: 'order', label: 'Порядок' },
+      ],
+      fields: [
+        { name: 'name', label: 'Название критерия', type: 'text', required: true },
+        { name: 'prompt_text', label: 'Промпт (инструкция модели)', type: 'textarea', required: true },
+        { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
+        { name: 'department', label: 'Отдел (или оставьте пустым)', type: 'select', lookup: 'departments', lookupLabel: (d) => d.name as string, hint: 'Заполните отдел ИЛИ группу. Оба пустые = ко всем.' },
+        { name: 'group', label: 'Группа (или оставьте пустым)', type: 'select', lookup: 'groups', lookupLabel: (g) => g.name as string },
+        { name: 'order', label: 'Порядок', type: 'number' },
+        { name: 'enabled', label: 'Включён', type: 'boolean' },
       ],
     },
   ];
@@ -359,9 +429,15 @@ function CrudModal({ resource, mode, row, optionsFor, onClose, onSaved }: {
   const initial: Row = {};
   for (const f of visibleFields) {
     if (mode === 'edit' && row) {
-      initial[f.name] = row[f.name] ?? (f.type === 'multiselect' ? [] : '');
+      if (f.type === 'multiselect') initial[f.name] = row[f.name] ?? [];
+      else if (f.type === 'flags') initial[f.name] = row[f.name] ?? {};
+      else if (f.type === 'boolean') initial[f.name] = row[f.name] ?? false;
+      else initial[f.name] = row[f.name] ?? '';
     } else {
-      initial[f.name] = f.type === 'multiselect' ? [] : (f.type === 'select' && f.options?.[0] ? f.options[0].value : '');
+      if (f.type === 'multiselect') initial[f.name] = [];
+      else if (f.type === 'flags') initial[f.name] = {};
+      else if (f.type === 'boolean') initial[f.name] = true;
+      else initial[f.name] = f.type === 'select' && f.options?.[0] ? f.options[0].value : '';
     }
   }
 
@@ -380,6 +456,8 @@ function CrudModal({ resource, mode, row, optionsFor, onClose, onSaved }: {
       for (const f of visibleFields) {
         const v = values[f.name];
         if (f.type === 'multiselect') { payload[f.name] = v ?? []; continue; }
+        if (f.type === 'flags') { payload[f.name] = v ?? {}; continue; }
+        if (f.type === 'boolean') { payload[f.name] = Boolean(v); continue; }
         if (v === '' || v == null) {
           if (f.required) { setError(`Заполните поле «${f.label}»`); setSaving(false); return; }
           continue; // не отправляем пустые необязательные
@@ -436,6 +514,32 @@ function FieldInput({ field, value, options, onChange }: {
   onChange: (v: unknown) => void;
 }) {
   const base = 'w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400';
+
+  if (field.type === 'boolean') {
+    return (
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)}
+          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400 w-4 h-4" />
+        <span className="text-sm text-gray-600">{Boolean(value) ? 'Включено' : 'Выключено'}</span>
+      </label>
+    );
+  }
+
+  if (field.type === 'flags') {
+    const obj = (value as Record<string, boolean>) ?? {};
+    const toggle = (k: string) => onChange({ ...obj, [k]: !obj[k] });
+    return (
+      <div className="grid grid-cols-1 gap-2">
+        {options.map((o) => (
+          <label key={o.value} className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={Boolean(obj[o.value])} onChange={() => toggle(String(o.value))}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400" />
+            <span className="text-sm text-gray-700">{o.label}</span>
+          </label>
+        ))}
+      </div>
+    );
+  }
 
   if (field.type === 'multiselect') {
     const selected = (value as (string | number)[]) ?? [];

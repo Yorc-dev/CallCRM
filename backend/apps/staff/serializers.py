@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 from .models import (
-    CompanySettings, Company, EmployeeGroup, Employee,
+    Company, EmployeeGroup, Employee,
     RecordingCategory, TranscriptionRecord, Analysis, Incident,
     ACCESS_CHOICES, ACCESS_KEYS,
 )
@@ -11,20 +11,19 @@ User = get_user_model()
 
 
 # --------------------------------------------------------------------------- #
-#  Settings & Company
+#  Company
 # --------------------------------------------------------------------------- #
-class CompanySettingsSerializer(serializers.ModelSerializer):
-    mode_display = serializers.CharField(source='get_mode_display', read_only=True)
-
-    class Meta:
-        model = CompanySettings
-        fields = ['mode', 'mode_display']
-
-
 class CompanySerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(source='plan.name', read_only=True, default=None)
+    max_users = serializers.IntegerField(source='plan.max_users', read_only=True, default=None)
+    user_count = serializers.IntegerField(source='employees.count', read_only=True)
+
     class Meta:
         model = Company
-        fields = ['id', 'name', 'api_key', 'encryption_key', 'created_at', 'updated_at']
+        fields = [
+            'id', 'name', 'api_key', 'encryption_key', 'plan', 'plan_name',
+            'max_users', 'user_count', 'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'api_key', 'encryption_key', 'created_at', 'updated_at']
 
 
@@ -60,6 +59,7 @@ class EmployeeGroupSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True)
     group_name = serializers.CharField(source='group.name', read_only=True)
+    department_name = serializers.CharField(source='department.name', read_only=True, default=None)
 
     # Поля пользователя (только при записи)
     password = serializers.CharField(write_only=True, required=False, allow_blank=False,
@@ -79,6 +79,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             'id', 'company', 'company_name', 'group', 'group_name',
+            'department', 'department_name',
             'full_name', 'email',
             'certificate', 'certificate_url', 'certificate_expires_at',
             # write-only
@@ -100,20 +101,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return None
 
     def _resolve_company(self, attrs):
-        """В режиме single — единственная компания, иначе company обязателен."""
-        settings_obj = CompanySettings.get()
-        if settings_obj.mode == CompanySettings.MODE_SINGLE:
-            company = Company.objects.first()
-            if company is None:
-                raise serializers.ValidationError(
-                    {'company': 'Не создана ни одна компания. Создайте компанию сначала.'}
-                )
-            return company
-        # multiple
+        """Компания указывается явно при создании сотрудника."""
         company = attrs.get('company')
         if company is None:
             raise serializers.ValidationError(
-                {'company': 'В режиме нескольких компаний поле company обязательно.'}
+                {'company': 'Поле company обязательно при создании сотрудника.'}
             )
         return company
 
@@ -122,13 +114,32 @@ class EmployeeSerializer(serializers.ModelSerializer):
             if not attrs.get('password'):
                 raise serializers.ValidationError({'password': 'Пароль обязателен при создании сотрудника.'})
             attrs['company'] = self._resolve_company(attrs)
+            self._check_user_limit(attrs['company'])
 
         # Группа должна принадлежать той же компании
         group = attrs.get('group')
         company = attrs.get('company') or (self.instance and self.instance.company)
         if group and company and group.company_id != company.id:
             raise serializers.ValidationError({'group': 'Группа принадлежит другой компании.'})
+
+        # Отдел должен принадлежать той же компании
+        department = attrs.get('department')
+        if department and company and department.company_id != company.id:
+            raise serializers.ValidationError({'department': 'Отдел принадлежит другой компании.'})
         return attrs
+
+    def _check_user_limit(self, company):
+        """Лимит пользователей по тарифному пакету компании."""
+        plan = getattr(company, 'plan', None)
+        if plan and plan.max_users is not None:
+            current = company.employees.count()
+            if current >= plan.max_users:
+                raise serializers.ValidationError({
+                    'non_field_errors': [
+                        f'Достигнут лимит пакета «{plan.name}»: '
+                        f'{plan.max_users} пользователей. Обновите тариф.'
+                    ]
+                })
 
     def create(self, validated_data):
         password = validated_data.pop('password')

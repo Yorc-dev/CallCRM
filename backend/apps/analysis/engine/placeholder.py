@@ -1,6 +1,6 @@
 import re
 
-from .models import ScriptTemplate, ScriptStep, CallAnalysis
+from apps.calls.models import ScriptTemplate, ScriptStep, CallAnalysis
 
 
 class PlaceholderAnalyzer:

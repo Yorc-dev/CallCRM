@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.calls.models import Call, Client, CallRecording, CallAnalysis, ScriptTemplate, ScriptStep
-from apps.calls.analyzer_openai import OpenAIAnalyzer
+from apps.analysis.engine.openai import OpenAIAnalyzer
 
 
 def _create_script_template(language='ru'):
@@ -245,7 +245,7 @@ class OpenAIAnalyzerTaskTest(TestCase):
             transcript_text='Здравствуйте. До свидания.',
         )
 
-        with patch('apps.calls.analyzer_openai.OpenAIAnalyzer._get_client', return_value=mock_openai):
+        with patch('apps.analysis.engine.openai.OpenAIAnalyzer._get_client', return_value=mock_openai):
             from django.urls import reverse
             url = reverse('call-analyze', kwargs={'pk': self.call.pk})
             response = self.api_client.post(url, {'language_hint': 'ru'}, format='json')
@@ -261,7 +261,7 @@ class OpenAIAnalyzerTaskTest(TestCase):
             transcript_text='Здравствуйте. До свидания.',
         )
 
-        with patch('apps.calls.analyzer_openai.OpenAIAnalyzer._get_client', return_value=mock_openai):
+        with patch('apps.analysis.engine.openai.OpenAIAnalyzer._get_client', return_value=mock_openai):
             from django.urls import reverse
             url = reverse('call-analyze', kwargs={'pk': self.call.pk})
             self.api_client.post(url, {'language_hint': 'ru'}, format='json')

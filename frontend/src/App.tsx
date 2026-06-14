@@ -13,6 +13,7 @@ import Directory from './pages/Directory';
 import Companies from './pages/Companies';
 import Staff from './pages/Staff';
 import Transcriptions from './pages/Transcriptions';
+import Analyses from './pages/Analyses';
 import Management from './pages/Management';
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/companies" element={<Companies />} />
               <Route path="/staff" element={<Staff />} />
               <Route path="/transcriptions" element={<Transcriptions />} />
+              <Route path="/analyses" element={<Analyses />} />
             </Route>
           </Route>
 

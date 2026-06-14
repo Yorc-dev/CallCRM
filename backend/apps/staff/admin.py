@@ -1,19 +1,8 @@
 from django.contrib import admin
 from .models import (
-    CompanySettings, Company, EmployeeGroup, Employee,
+    Company, EmployeeGroup, Employee,
     RecordingCategory, TranscriptionRecord, Analysis, Incident,
 )
-
-
-@admin.register(CompanySettings)
-class CompanySettingsAdmin(admin.ModelAdmin):
-    list_display = ['mode']
-
-    def has_add_permission(self, request):
-        return not CompanySettings.objects.exists()
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(Company)

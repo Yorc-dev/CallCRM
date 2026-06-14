@@ -1,13 +1,12 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 from .views import (
-    CompanySettingsViewSet, CompanyViewSet, EmployeeViewSet, EmployeeGroupViewSet,
+    CompanyViewSet, EmployeeViewSet, EmployeeGroupViewSet,
     RecordingCategoryViewSet, TranscriptionRecordViewSet,
     AnalysisViewSet, IncidentViewSet,
 )
 
 router = DefaultRouter()
-router.register('settings', CompanySettingsViewSet, basename='companysettings')
 router.register('companies', CompanyViewSet, basename='company')
 router.register('employees', EmployeeViewSet, basename='employee')
 router.register('groups', EmployeeGroupViewSet, basename='employeegroup')
