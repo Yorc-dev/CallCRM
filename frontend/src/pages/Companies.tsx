@@ -36,15 +36,8 @@ function KeyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-interface Settings {
-  mode: 'single' | 'multiple';
-  mode_display: string;
-}
-
 export default function Companies() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [savingMode, setSavingMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -67,21 +60,7 @@ export default function Companies() {
 
   useEffect(() => {
     fetchCompanies();
-    api.get('/api/staff/settings/').then((r) => setSettings(r.data)).catch(() => {});
   }, []);
-
-  const handleChangeMode = async (mode: 'single' | 'multiple') => {
-    setSavingMode(true);
-    setError('');
-    try {
-      const { data } = await api.put('/api/staff/settings/', { mode });
-      setSettings(data);
-    } catch {
-      setError('Не удалось изменить режим');
-    } finally {
-      setSavingMode(false);
-    }
-  };
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -137,38 +116,6 @@ export default function Companies() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3 mb-4">{error}</div>
-      )}
-
-      {/* Режим работы */}
-      {settings && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Режим работы</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {settings.mode === 'single'
-                  ? 'Одна компания — сотрудники привязываются автоматически'
-                  : 'Несколько компаний — компания выбирается при создании сотрудника'}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {(['single', 'multiple'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => handleChangeMode(m)}
-                  disabled={savingMode || settings.mode === m}
-                  className={`px-4 py-2 text-sm rounded-md font-medium transition-colors ${
-                    settings.mode === m
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  } disabled:opacity-100`}
-                >
-                  {m === 'single' ? 'Одна компания' : 'Несколько компаний'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
       )}
 
       {loading ? (

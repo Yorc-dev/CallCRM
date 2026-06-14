@@ -4,7 +4,10 @@ from urllib import response
 
 from django.conf import settings
 
-from .models import ScriptTemplate, CallRecording
+from apps.calls.models import ScriptTemplate, CallRecording
+from apps.analysis.prompts import (
+    get_call_scope, analysis_enabled, build_criteria_prompt,
+)
 from django.utils.text import get_valid_filename
 
 import os
@@ -62,8 +65,13 @@ class OpenAIAnalyzer:
             return resp
         return getattr(resp, "text", None) or resp["text"]
 
-    def _generate_insights(self, openai_client, transcript: str, language: str) -> tuple:
-        """Call chat completion to produce structured analysis + dialogue transcript."""
+    def _generate_insights(self, openai_client, transcript: str, language: str,
+                           criteria_prompt: str = '') -> tuple:
+        """Call chat completion to produce structured analysis + dialogue transcript.
+
+        criteria_prompt — динамический блок критериев отдела (может быть пустым).
+        """
+        criteria_block = f'\n\n        {criteria_prompt}\n' if criteria_prompt else ''
         system_prompt = f"""
         You are an expert call-center QA analyst and transcript editor.
 
@@ -110,7 +118,8 @@ class OpenAIAnalyzer:
         - Keep language of the content consistent with the call (Russian/Kazakh). Do not translate unless the transcript is mixed.
         - "operator_coaching.score" must be an integer 0..100.
         - If some fields are unknown, return empty string "" or empty array [].
-        - Do NOT include any additional keys outside the schema.
+        - Do NOT include any additional keys outside the schema (except "criteria_scores" if criteria are provided below).
+        {criteria_block}
         """.strip()
 
         response = openai_client.chat.completions.create(
@@ -198,8 +207,30 @@ class OpenAIAnalyzer:
             self._compute_script_compliance(transcript, language_hint)
         )
 
-        # 4. AI insights
-        insights, token_usage = self._generate_insights(openai_client, transcript, language_hint)
+        # 4. Динамические критерии отдела/группы (динамический промптинг)
+        company_id, department_id, group_id = get_call_scope(call)
+        criteria_prompt = build_criteria_prompt(company_id, department_id, group_id)
+
+        # Если анализ выключен для компании — возвращаем только транскрипт
+        if not analysis_enabled(company_id):
+            return {
+                'asr_language': language_hint,
+                'transcript_text': transcript,
+                'transcript_dialogue': [],
+                'summary_short': '',
+                'summary_structured': {},
+                'category': '',
+                'operator_coaching': {},
+                'client_draft': {},
+                'script_compliance': script_compliance,
+                'script_score': script_score,
+                'model_info': {'analyzer': 'openai_v1', 'analysis_disabled': True},
+            }
+
+        # 5. AI insights (с подмешанными критериями отдела)
+        insights, token_usage = self._generate_insights(
+            openai_client, transcript, language_hint, criteria_prompt=criteria_prompt
+        )
 
         # 5. Build client_draft from AI response, fall back to regex extraction
         client_draft = insights.get('client_draft') or {}
@@ -219,7 +250,7 @@ class OpenAIAnalyzer:
         client_draft.setdefault('language', language_hint)
         client_draft.setdefault('notes', f'Auto-generated from call {call.id}')
 
-        # 6. Build model_info
+        # 6. Build model_info (включая результаты по динамическим критериям)
         model_info = {
             'analyzer': 'openai_v1',
             'transcribe_model': settings.OPENAI_TRANSCRIBE_MODEL,
@@ -227,6 +258,7 @@ class OpenAIAnalyzer:
             'script_template': template.name if template else None,
             'script_version': template.version if template else None,
             'token_usage': token_usage,
+            'criteria_scores': insights.get('criteria_scores', []),
         }
 
         return {

@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     'apps.analytics',
     'apps.telephony_twilio',
     'apps.staff',
+    'apps.billing',
+    'apps.analysis',
 ]
 
 MIDDLEWARE = [

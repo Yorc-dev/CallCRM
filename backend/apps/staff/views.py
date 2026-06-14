@@ -4,11 +4,11 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from .models import (
-    CompanySettings, Company, Employee, EmployeeGroup,
+    Company, Employee, EmployeeGroup,
     RecordingCategory, TranscriptionRecord, Analysis, Incident, ACCESS_CHOICES,
 )
 from .serializers import (
-    CompanySettingsSerializer, CompanySerializer, EmployeeSerializer,
+    CompanySerializer, EmployeeSerializer,
     EmployeeGroupSerializer, RecordingCategorySerializer,
     TranscriptionRecordSerializer, AnalysisSerializer, IncidentSerializer,
 )
@@ -41,24 +41,6 @@ class CompanyScopedMixin:
         if cid is None:
             return qs.none()
         return qs.filter(**{self.company_lookup: cid})
-
-
-class CompanySettingsViewSet(mixins.RetrieveModelMixin,
-                             mixins.UpdateModelMixin,
-                             mixins.ListModelMixin,
-                             viewsets.GenericViewSet):
-    """Singleton-настройки: режим одна/несколько компаний."""
-    serializer_class = CompanySettingsSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChiefOrAdmin]
-
-    def get_queryset(self):
-        return CompanySettings.objects.all()
-
-    def get_object(self):
-        return CompanySettings.get()
-
-    def list(self, request, *args, **kwargs):
-        return Response(self.get_serializer(self.get_object()).data)
 
 
 class CompanyViewSet(CompanyScopedMixin, viewsets.ModelViewSet):

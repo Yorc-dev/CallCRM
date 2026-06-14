@@ -7,11 +7,6 @@ interface Company {
   name: string;
 }
 
-interface Settings {
-  mode: 'single' | 'multiple';
-  mode_display: string;
-}
-
 interface Employee {
   id: number;
   full_name: string;
@@ -53,9 +48,6 @@ const ROLE_OPTIONS = [
 export default function Staff() {
   const [tab, setTab] = useState<Tab>('employees');
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-
-  const isSingle = settings?.mode === 'single';
 
   // --- Employees ---
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -87,7 +79,6 @@ export default function Staff() {
   useEffect(() => {
     api.get('/api/staff/companies/').then((r) => setCompanies(r.data?.results ?? r.data ?? [])).catch(() => {});
     api.get('/api/staff/groups/available-accesses/').then((r) => setAvailableAccesses(r.data)).catch(() => {});
-    api.get('/api/staff/settings/').then((r) => setSettings(r.data)).catch(() => {});
   }, []);
 
   const fetchEmployees = async () => {
@@ -121,7 +112,7 @@ export default function Staff() {
   useEffect(() => { fetchGroups(); }, []);
 
   // Группы для выбора в форме сотрудника — фильтруем по выбранной компании
-  const employeeCompanyId = isSingle ? (companies[0]?.id?.toString() ?? '') : newCompanyId;
+  const employeeCompanyId = newCompanyId;
   const groupsForEmployee = groups.filter(
     (g) => !employeeCompanyId || g.company === parseInt(employeeCompanyId)
   );
@@ -148,8 +139,7 @@ export default function Staff() {
         password: newPassword,
         role: newRole,
       };
-      // В режиме multiple компания обязательна; в single бэкенд подставит сам
-      if (!isSingle && newCompanyId) payload.company = parseInt(newCompanyId);
+      if (newCompanyId) payload.company = parseInt(newCompanyId);
       if (newGroupId) payload.group = parseInt(newGroupId);
       if (newCertExpires) payload.certificate_expires_at = newCertExpires;
 
@@ -168,7 +158,7 @@ export default function Staff() {
     setError('');
     setCreatingGrp(true);
     try {
-      const companyId = isSingle ? companies[0]?.id : parseInt(grpCompanyId);
+      const companyId = parseInt(grpCompanyId);
       const { data } = await api.post('/api/staff/groups/', {
         name: grpName,
         company: companyId,
@@ -264,7 +254,7 @@ export default function Staff() {
               onChange={(e) => setEmpSearch(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 w-64"
             />
-            {!isSingle && (
+            {(
               <select
                 value={empCompanyFilter}
                 onChange={(e) => setEmpCompanyFilter(e.target.value)}
@@ -289,7 +279,7 @@ export default function Staff() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Логин</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Группа</th>
-                    {!isSingle && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Компания</th>}
+                    {<th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Компания</th>}
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Сертификат до</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -315,7 +305,7 @@ export default function Staff() {
                             .map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                         </select>
                       </td>
-                      {!isSingle && (
+                      {(
                         <td className="px-4 py-3">
                           <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs">{emp.company_name}</span>
                         </td>
@@ -352,7 +342,7 @@ export default function Staff() {
                   <div>
                     <h3 className="font-semibold text-gray-800">{g.name}</h3>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {!isSingle && <>Компания: <span className="text-gray-700">{g.company_name}</span> · </>}
+                      {<>Компания: <span className="text-gray-700">{g.company_name}</span> · </>}
                       Сотрудников: <span className="text-gray-700">{g.employee_count}</span>
                     </p>
                   </div>
@@ -409,7 +399,7 @@ export default function Staff() {
                   {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
-              {!isSingle && (
+              {(
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Компания</label>
                   <select required value={newCompanyId} onChange={(e) => { setNewCompanyId(e.target.value); setNewGroupId(''); }}
@@ -457,7 +447,7 @@ export default function Staff() {
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   placeholder="Менеджеры" />
               </div>
-              {!isSingle && (
+              {(
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Компания</label>
                   <select required value={grpCompanyId} onChange={(e) => setGrpCompanyId(e.target.value)}

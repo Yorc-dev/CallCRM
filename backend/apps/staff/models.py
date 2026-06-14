@@ -4,34 +4,6 @@ from django.contrib.auth import get_user_model
 from django.db import models
 
 
-class CompanySettings(models.Model):
-    """Singleton: режим работы системы — одна или несколько компаний."""
-    MODE_SINGLE = 'single'
-    MODE_MULTIPLE = 'multiple'
-    MODE_CHOICES = [
-        (MODE_SINGLE, 'Одна компания'),
-        (MODE_MULTIPLE, 'Несколько компаний'),
-    ]
-
-    mode = models.CharField(max_length=10, choices=MODE_CHOICES, default=MODE_SINGLE)
-
-    class Meta:
-        verbose_name = 'Company Settings'
-        verbose_name_plural = 'Company Settings'
-
-    def save(self, *args, **kwargs):
-        self.pk = 1
-        super().save(*args, **kwargs)
-
-    @classmethod
-    def get(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
-
-    def __str__(self):
-        return f'Режим: {self.get_mode_display()}'
-
-
 class Company(models.Model):
     """Компания — владелец пространства данных."""
     name = models.CharField(max_length=255)
@@ -42,6 +14,11 @@ class Company(models.Model):
     encryption_key = models.CharField(
         max_length=64, unique=True, blank=True,
         help_text='Ключ для шифрования данных'
+    )
+    plan = models.ForeignKey(
+        'billing.Plan', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='companies',
+        help_text='Тарифный пакет компании'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -115,6 +92,13 @@ class Employee(models.Model):
         null=True, blank=True,
         related_name='employees',
         help_text='Группа сотрудника'
+    )
+    department = models.ForeignKey(
+        'analysis.Department',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='employees',
+        help_text='Отдел сотрудника (для динамических промптов)'
     )
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
