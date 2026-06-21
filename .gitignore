@@ -43,3 +43,9 @@ htmlcov/
 
 .claude
 .claude/
+# Audio-monitor
+audio-monitor/ingest/data/
+audio-monitor/client/.venv/
+backend/models/
+*.enc
+*.pem

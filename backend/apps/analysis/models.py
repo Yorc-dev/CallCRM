@@ -40,6 +40,25 @@ class CompanyAnalysisSettings(models.Model):
         return f'Анализ для {self.company.name}: {"вкл" if self.enabled else "выкл"}'
 
 
+class PromptList(models.Model):
+    """Именованный список промптов (критериев) — назначается группам сотрудников."""
+    company = models.ForeignKey(
+        'staff.Company', on_delete=models.CASCADE, related_name='prompt_lists'
+    )
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Prompt List'
+        verbose_name_plural = 'Prompt Lists'
+        ordering = ['name']
+        unique_together = [('company', 'name')]
+
+    def __str__(self):
+        return f'{self.name} ({self.company.name})'
+
+
 class AnalysisCriterion(models.Model):
     """Критерий анализа: промпт, который подмешивается в системный запрос.
 
@@ -59,6 +78,11 @@ class AnalysisCriterion(models.Model):
         'staff.EmployeeGroup', on_delete=models.CASCADE,
         null=True, blank=True, related_name='criteria',
         help_text='Применять к группе сотрудников. Пусто = ко всем.'
+    )
+    prompt_list = models.ForeignKey(
+        PromptList, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='criteria',
+        help_text='Список, к которому относится промпт.'
     )
     name = models.CharField(max_length=255, help_text='Название критерия, напр. «Вежливость».')
     prompt_text = models.TextField(help_text='Инструкция для модели по этому критерию.')

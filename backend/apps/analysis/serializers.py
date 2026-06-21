@@ -1,5 +1,16 @@
 from rest_framework import serializers
-from .models import Department, CompanyAnalysisSettings, AnalysisCriterion
+from .models import Department, CompanyAnalysisSettings, AnalysisCriterion, PromptList
+
+
+class PromptListSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    criteria_count = serializers.IntegerField(source='criteria.count', read_only=True)
+
+    class Meta:
+        model = PromptList
+        fields = ['id', 'company', 'company_name', 'name', 'description',
+                  'criteria_count', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -33,7 +44,7 @@ class AnalysisCriterionSerializer(serializers.ModelSerializer):
         model = AnalysisCriterion
         fields = [
             'id', 'company', 'company_name', 'department', 'department_name',
-            'group', 'group_name',
+            'group', 'group_name', 'prompt_list',
             'name', 'prompt_text', 'enabled', 'order', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

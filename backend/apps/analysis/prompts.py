@@ -21,14 +21,25 @@ def analysis_enabled(company_id) -> bool:
 
 
 def collect_criteria(company_id, department_id, group_id=None):
-    """Включённые критерии: общие (без отдела/группы) + по отделу + по группе оператора."""
+    """Включённые критерии для звонка.
+
+    Источники: общекомпанейские + по отделу + по группе оператора +
+    критерии из списков промптов, назначенных группе оператора.
+    """
     if not company_id:
         return []
-    scope = Q(department__isnull=True, group__isnull=True)  # общекомпанейские
+    scope = Q(department__isnull=True, group__isnull=True, prompt_list__isnull=True)
     if department_id:
         scope |= Q(department_id=department_id)
     if group_id:
         scope |= Q(group_id=group_id)
+        # списки промптов, назначенные группе сотрудника
+        from apps.staff.models import EmployeeGroup
+        grp = EmployeeGroup.objects.filter(id=group_id).prefetch_related('prompt_lists').first()
+        if grp:
+            list_ids = list(grp.prompt_lists.values_list('id', flat=True))
+            if list_ids:
+                scope |= Q(prompt_list_id__in=list_ids)
     qs = AnalysisCriterion.objects.filter(
         company_id=company_id, enabled=True
     ).filter(scope).order_by('order', 'id')

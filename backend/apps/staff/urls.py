@@ -3,7 +3,7 @@ from django.urls import path, include
 from .views import (
     CompanyViewSet, EmployeeViewSet, EmployeeGroupViewSet,
     RecordingCategoryViewSet, TranscriptionRecordViewSet,
-    AnalysisViewSet, IncidentViewSet,
+    AnalysisViewSet, IncidentViewSet, DeviceBindView,
 )
 
 router = DefaultRouter()
@@ -16,5 +16,6 @@ router.register('analyses', AnalysisViewSet, basename='analysis')
 router.register('incidents', IncidentViewSet, basename='incident')
 
 urlpatterns = [
+    path('device-bind/', DeviceBindView.as_view(), name='device-bind'),
     path('', include(router.urls)),
 ]

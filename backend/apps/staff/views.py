@@ -1,5 +1,6 @@
-from rest_framework import viewsets, permissions, mixins
+from rest_framework import viewsets, permissions, mixins, status
 from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 
@@ -13,6 +14,54 @@ from .serializers import (
     TranscriptionRecordSerializer, AnalysisSerializer, IncidentSerializer,
 )
 from apps.calls.permissions import IsChiefOrAdmin
+
+
+def resolve_company_employee(company_key: str, email: str, password: str = None):
+    """Привязка устройства: ключ компании + сотрудник.
+
+    Возвращает (company, employee, error_str). Если password задан — проверяет его.
+    """
+    company_key = (company_key or '').strip()
+    email = (email or '').strip()
+    company = Company.objects.filter(api_key=company_key).first()
+    if not company:
+        import logging
+        logging.getLogger('django').warning(
+            'device-bind: ключ не найден, получено %r (len=%d)', company_key, len(company_key)
+        )
+        return None, None, 'Неверный ключ компании'
+    employee = Employee.objects.select_related('user').filter(
+        company=company, email__iexact=email
+    ).first()
+    if not employee:
+        return company, None, 'Сотрудник с таким email не найден в компании'
+    if password is not None:
+        if not employee.user or not employee.user.check_password(password):
+            return company, None, 'Неверный пароль'
+    return company, employee, None
+
+
+class DeviceBindView(APIView):
+    """Привязка десктоп-устройства к компании+сотруднику по ключу компании.
+
+    Десктоп шлёт ключ компании + email + пароль сотрудника. Без JWT.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        company_key = request.data.get('company_key', '')
+        email = request.data.get('email', '')
+        password = request.data.get('password', '')
+        company, employee, err = resolve_company_employee(company_key, email, password)
+        if err:
+            return Response({'ok': False, 'detail': err}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({
+            'ok': True,
+            'company_id': company.id,
+            'company_name': company.name,
+            'employee_id': employee.id,
+            'employee_name': employee.full_name,
+        })
 
 
 def user_company_id(user):
@@ -123,6 +172,21 @@ class TranscriptionRecordViewSet(CompanyScopedMixin, viewsets.ModelViewSet):
         category_id = self.request.query_params.get('category')
         if category_id:
             qs = qs.filter(category_id=category_id)
+        # Фильтр по диапазону даты/времени (для ленты): from / to (ISO)
+        dt_from = self.request.query_params.get('from')
+        dt_to = self.request.query_params.get('to')
+        from django.utils.dateparse import parse_datetime, parse_date
+        if dt_from:
+            v = parse_datetime(dt_from) or parse_date(dt_from)
+            if v:
+                qs = qs.filter(record_datetime__gte=v)
+        if dt_to:
+            v = parse_datetime(dt_to) or parse_date(dt_to)
+            if v:
+                qs = qs.filter(record_datetime__lte=v)
+        # Лента — по возрастанию времени, если запрошено
+        if self.request.query_params.get('order') == 'asc':
+            qs = qs.order_by('record_datetime')
         return qs
 
     def get_serializer_context(self):
@@ -143,6 +207,22 @@ class AnalysisViewSet(CompanyScopedMixin, viewsets.ModelViewSet):
         record_id = self.request.query_params.get('record')
         if record_id:
             qs = qs.filter(record_id=record_id)
+        # Фильтр по сотруднику
+        employee_id = self.request.query_params.get('employee')
+        if employee_id:
+            qs = qs.filter(record__employee_id=employee_id)
+        # Фильтр по диапазону даты/времени записи
+        from django.utils.dateparse import parse_datetime, parse_date
+        dt_from = self.request.query_params.get('from')
+        dt_to = self.request.query_params.get('to')
+        if dt_from:
+            v = parse_datetime(dt_from) or parse_date(dt_from)
+            if v:
+                qs = qs.filter(record__record_datetime__gte=v)
+        if dt_to:
+            v = parse_datetime(dt_to) or parse_date(dt_to)
+            if v:
+                qs = qs.filter(record__record_datetime__lte=v)
         return qs
 
 

@@ -123,6 +123,9 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'
 CELERY_TASK_EAGER_PROPAGATES = True
 
+# Audio ingest (M2M из ingest-сервиса)
+INGEST_TOKEN = os.environ.get('INGEST_TOKEN', 'dev-ingest-token-change-me')
+
 # OpenAI
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 OPENAI_TRANSCRIBE_MODEL = os.environ.get('OPENAI_TRANSCRIBE_MODEL', 'whisper-1')

@@ -1,11 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
+
+interface Employee { id: number; full_name: string; }
 
 interface Incident {
   id: number;
   start_minutes: number;
   end_minutes: number;
+  description?: string;
+  severity?: string;
 }
+
+const sevColor = (s?: string) =>
+  s === 'high' ? 'bg-red-100 text-red-700 border-red-200'
+  : s === 'medium' ? 'bg-amber-100 text-amber-800 border-amber-200'
+  : 'bg-gray-100 text-gray-600 border-gray-200';
+
+const fmtTime = (min: number) => {
+  const total = Math.round(min * 60);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+};
 
 interface Analysis {
   id: number;
@@ -25,23 +39,38 @@ function unwrap(data: unknown): Analysis[] {
 
 export default function Analyses() {
   const [items, setItems] = useState<Analysis[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<Analysis | null>(null);
 
-  const fetchItems = async () => {
+  const [employee, setEmployee] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  useEffect(() => {
+    api.get('/api/staff/employees/')
+      .then((r) => setEmployees(Array.isArray(r.data) ? r.data : r.data.results ?? []))
+      .catch(() => {});
+  }, []);
+
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/api/staff/analyses/');
+      const params: { [k: string]: string } = {};
+      if (employee) params.employee = employee;
+      if (from) params.from = new Date(from).toISOString();
+      if (to) params.to = new Date(to).toISOString();
+      const { data } = await api.get('/api/staff/analyses/', { params });
       setItems(unwrap(data));
     } catch {
       setError('Не удалось загрузить анализы');
     } finally {
       setLoading(false);
     }
-  };
+  }, [employee, from, to]);
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('Удалить анализ?')) return;
@@ -56,6 +85,32 @@ export default function Analyses() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Анализы</h2>
+      </div>
+
+      {/* Фильтры */}
+      <div className="flex flex-wrap items-end gap-3 mb-4 bg-white border border-gray-200 rounded-lg p-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Сотрудник</label>
+          <select value={employee} onChange={(e) => setEmployee(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <option value="">Все</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">С</label>
+          <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">По</label>
+          <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+        {(employee || from || to) && (
+          <button onClick={() => { setEmployee(''); setFrom(''); setTo(''); }}
+            className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">Сбросить</button>
+        )}
       </div>
 
       {error && (
@@ -129,10 +184,18 @@ export default function Analyses() {
               {selected.incidents.length === 0 ? (
                 <p className="text-sm text-gray-400 italic">Инцидентов нет</p>
               ) : (
-                <ul className="space-y-1.5">
+                <ul className="space-y-2">
                   {selected.incidents.map((inc) => (
-                    <li key={inc.id} className="bg-amber-50 border border-amber-100 rounded-md px-3 py-1.5 text-sm text-amber-800 font-medium">
-                      {inc.start_minutes}–{inc.end_minutes} мин
+                    <li key={inc.id} className={`border rounded-md px-3 py-2 text-sm ${sevColor(inc.severity)}`}>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {inc.severity && (
+                          <span className="text-[11px] font-bold uppercase">{inc.severity}</span>
+                        )}
+                        {(inc.start_minutes !== 0 || inc.end_minutes !== 0) && (
+                          <span className="text-xs opacity-70">⏱ {fmtTime(inc.start_minutes)}–{fmtTime(inc.end_minutes)}</span>
+                        )}
+                      </div>
+                      {inc.description || '—'}
                     </li>
                   ))}
                 </ul>

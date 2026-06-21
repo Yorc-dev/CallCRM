@@ -63,6 +63,10 @@ class EmployeeGroup(models.Model):
         default=list, blank=True,
         help_text='Список доступов: view_calls, upload_calls, analyze_calls, ...'
     )
+    prompt_lists = models.ManyToManyField(
+        'analysis.PromptList', blank=True, related_name='groups',
+        help_text='Списки промптов, назначенные группе.'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -186,7 +190,19 @@ class TranscriptionRecord(models.Model):
     record_datetime = models.DateTimeField(
         help_text='Дата и время записи'
     )
+    session_id = models.CharField(
+        max_length=64, blank=True, default='', db_index=True,
+        help_text='ID сессии записи — связывает сегменты с цельным оригиналом.'
+    )
+    is_original = models.BooleanField(
+        default=False,
+        help_text='Сплошной оригинал сессии (от-до), без транскрибации.'
+    )
     text = models.TextField(blank=True, default='')
+    transcript_segments = models.JSONField(
+        default=list, blank=True,
+        help_text='Сегменты с таймингами: [{start,end,speaker,text}]'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -228,6 +244,11 @@ class Incident(models.Model):
     )
     start_minutes = models.FloatField(help_text='Начало инцидента (минуты)')
     end_minutes = models.FloatField(help_text='Конец инцидента (минуты)')
+    description = models.TextField(blank=True, default='', help_text='Описание инцидента')
+    severity = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='Важность: low/medium/high'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

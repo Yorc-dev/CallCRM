@@ -17,14 +17,20 @@ class CompanySerializer(serializers.ModelSerializer):
     plan_name = serializers.CharField(source='plan.name', read_only=True, default=None)
     max_users = serializers.IntegerField(source='plan.max_users', read_only=True, default=None)
     user_count = serializers.IntegerField(source='employees.count', read_only=True)
+    monthly_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = Company
         fields = [
             'id', 'name', 'api_key', 'encryption_key', 'plan', 'plan_name',
-            'max_users', 'user_count', 'created_at', 'updated_at',
+            'max_users', 'user_count', 'monthly_cost', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'api_key', 'encryption_key', 'created_at', 'updated_at']
+
+    def get_monthly_cost(self, obj):
+        if obj.plan_id and obj.plan:
+            return obj.plan.cost_for(obj.employees.count())
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -39,7 +45,7 @@ class EmployeeGroupSerializer(serializers.ModelSerializer):
         model = EmployeeGroup
         fields = [
             'id', 'company', 'company_name', 'name',
-            'accesses', 'available_accesses', 'employee_count', 'created_at',
+            'accesses', 'available_accesses', 'prompt_lists', 'employee_count', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -226,6 +232,7 @@ class IncidentSerializer(serializers.ModelSerializer):
         model = Incident
         fields = [
             'id', 'record', 'analysis', 'start_minutes', 'end_minutes',
+            'description', 'severity',
             'employee_name', 'company_name', 'record_datetime', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
@@ -264,8 +271,8 @@ class TranscriptionRecordSerializer(serializers.ModelSerializer):
         model = TranscriptionRecord
         fields = [
             'id', 'employee', 'employee_name', 'category', 'category_title',
-            'audio', 'audio_url', 'record_datetime', 'text', 'analysis',
-            'created_at', 'updated_at',
+            'audio', 'audio_url', 'record_datetime', 'session_id', 'is_original',
+            'text', 'analysis', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         extra_kwargs = {'audio': {'write_only': True}}

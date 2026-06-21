@@ -14,6 +14,8 @@ import Companies from './pages/Companies';
 import Staff from './pages/Staff';
 import Transcriptions from './pages/Transcriptions';
 import Analyses from './pages/Analyses';
+import Timeline from './pages/Timeline';
+import MasterAIS from './pages/MasterAIS';
 import Management from './pages/Management';
 
 export default function App() {
@@ -36,6 +38,7 @@ export default function App() {
               <Route path="/staff" element={<Staff />} />
               <Route path="/transcriptions" element={<Transcriptions />} />
               <Route path="/analyses" element={<Analyses />} />
+              <Route path="/timeline" element={<Timeline />} />
             </Route>
           </Route>
 
@@ -45,6 +48,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/management" element={<Management />} />
+              <Route path="/master-ais" element={<MasterAIS />} />
             </Route>
           </Route>
 

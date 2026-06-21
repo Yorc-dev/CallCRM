@@ -43,7 +43,7 @@ interface Resource {
 }
 
 type Row = Record<string, unknown>;
-type LookupKey = 'companies' | 'groups' | 'employees' | 'records' | 'accesses' | 'plans' | 'departments';
+type LookupKey = 'companies' | 'groups' | 'employees' | 'records' | 'accesses' | 'plans' | 'departments' | 'prompt_lists';
 
 function unwrap(data: unknown): Row[] {
   if (Array.isArray(data)) return data as Row[];
@@ -76,11 +76,11 @@ export default function Management() {
 
   // Справочники для динамических select'ов
   const [lookups, setLookups] = useState<Record<LookupKey, Row[]>>({
-    companies: [], groups: [], employees: [], records: [], accesses: [], plans: [], departments: [],
+    companies: [], groups: [], employees: [], records: [], accesses: [], plans: [], departments: [], prompt_lists: [],
   });
 
   const loadLookups = useCallback(async () => {
-    const [companies, groups, employees, records, accessesResp, plans, departments] = await Promise.all([
+    const [companies, groups, employees, records, accessesResp, plans, departments, promptLists] = await Promise.all([
       api.get('/api/staff/companies/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/staff/groups/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/staff/employees/').then((r) => unwrap(r.data)).catch(() => []),
@@ -88,8 +88,9 @@ export default function Management() {
       api.get('/api/staff/groups/available-accesses/').then((r) => r.data as Row[]).catch(() => []),
       api.get('/api/billing/plans/').then((r) => unwrap(r.data)).catch(() => []),
       api.get('/api/analysis/departments/').then((r) => unwrap(r.data)).catch(() => []),
+      api.get('/api/analysis/prompt-lists/').then((r) => unwrap(r.data)).catch(() => []),
     ]);
-    setLookups({ companies, groups, employees, records, accesses: accessesResp, plans, departments });
+    setLookups({ companies, groups, employees, records, accesses: accessesResp, plans, departments, prompt_lists: promptLists });
   }, []);
 
   useEffect(() => { loadLookups(); }, [loadLookups]);
@@ -104,6 +105,7 @@ export default function Management() {
         { key: 'name', label: 'Название' },
         { key: 'plan_name', label: 'Пакет', render: (r) => (r.plan_name as string) ?? '—' },
         { key: 'users', label: 'Польз./лимит', render: (r) => `${r.user_count ?? 0}/${r.max_users ?? '∞'}` },
+        { key: 'monthly_cost', label: 'Стоимость', render: (r) => (r.monthly_cost != null ? `${r.monthly_cost} ₸` : '—') },
         { key: 'created_at', label: 'Создана', render: (r) => fmtDate(r.created_at) },
       ],
       fields: [
@@ -155,6 +157,7 @@ export default function Management() {
         { name: 'name', label: 'Название группы', type: 'text', required: true },
         { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
         { name: 'accesses', label: 'Доступы', type: 'multiselect', lookup: 'accesses' },
+        { name: 'prompt_lists', label: 'Списки промптов', type: 'multiselect', lookup: 'prompt_lists', lookupLabel: (l) => l.name as string },
       ],
     },
     {
@@ -191,7 +194,8 @@ export default function Management() {
         { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
         { key: 'name', label: 'Название' },
         { key: 'max_users', label: 'Макс. польз.', render: (r) => (r.max_users != null ? String(r.max_users) : '∞') },
-        { key: 'price', label: 'Цена' },
+        { key: 'billing_type_display', label: 'Тариф', render: (r) => (r.billing_type_display as string) ?? '—' },
+        { key: 'cost', label: 'Ставка/Цена', render: (r) => r.billing_type === 'per_user' ? `${r.rate} ₸/чел` : `${r.price} ₸` },
         { key: 'company_count', label: 'Компаний' },
         { key: 'is_active', label: 'Активен', render: (r) => (r.is_active ? 'Да' : 'Нет') },
       ],
@@ -199,7 +203,12 @@ export default function Management() {
         { name: 'name', label: 'Название', type: 'text', required: true },
         { name: 'description', label: 'Описание', type: 'textarea' },
         { name: 'max_users', label: 'Макс. пользователей (пусто = ∞)', type: 'number' },
-        { name: 'price', label: 'Цена', type: 'number' },
+        { name: 'billing_type', label: 'Тип тарификации', type: 'select', options: [
+          { value: 'fixed', label: 'Фиксированная ставка' },
+          { value: 'per_user', label: 'За сотрудника × ставка' },
+        ] },
+        { name: 'rate', label: 'Ставка за сотрудника (для per_user)', type: 'number' },
+        { name: 'price', label: 'Фикс. цена (для fixed)', type: 'number' },
         { name: 'features', label: 'Функции пакета', type: 'flags', options: [
           { value: 'analytics', label: 'Аналитика' },
           { value: 'dynamic_prompts', label: 'Динамические промпты' },
@@ -238,6 +247,21 @@ export default function Management() {
       ],
     },
     {
+      key: 'prompt_lists', endpoint: '/api/analysis/prompt-lists/', title: 'Списки промптов',
+      canCreate: true, canEdit: true, canDelete: true,
+      columns: [
+        { key: 'id', label: 'ID', render: (r) => `#${r.id}` },
+        { key: 'name', label: 'Название' },
+        { key: 'company_name', label: 'Компания' },
+        { key: 'criteria_count', label: 'Промптов' },
+      ],
+      fields: [
+        { name: 'name', label: 'Название списка', type: 'text', required: true },
+        { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
+        { name: 'description', label: 'Описание', type: 'textarea' },
+      ],
+    },
+    {
       key: 'criteria', endpoint: '/api/analysis/criteria/', title: 'Критерии (промпты)',
       canCreate: true, canEdit: true, canDelete: true,
       columns: [
@@ -255,7 +279,8 @@ export default function Management() {
         { name: 'name', label: 'Название критерия', type: 'text', required: true },
         { name: 'prompt_text', label: 'Промпт (инструкция модели)', type: 'textarea', required: true },
         { name: 'company', label: 'Компания', type: 'select', required: true, lookup: 'companies', lookupLabel: (c) => c.name as string },
-        { name: 'department', label: 'Отдел (или оставьте пустым)', type: 'select', lookup: 'departments', lookupLabel: (d) => d.name as string, hint: 'Заполните отдел ИЛИ группу. Оба пустые = ко всем.' },
+        { name: 'prompt_list', label: 'Список промптов (необязательно)', type: 'select', lookup: 'prompt_lists', lookupLabel: (l) => l.name as string },
+        { name: 'department', label: 'Отдел (или оставьте пустым)', type: 'select', lookup: 'departments', lookupLabel: (d) => d.name as string, hint: 'Список / отдел / группа — куда применять промпт.' },
         { name: 'group', label: 'Группа (или оставьте пустым)', type: 'select', lookup: 'groups', lookupLabel: (g) => g.name as string },
         { name: 'order', label: 'Порядок', type: 'number' },
         { name: 'enabled', label: 'Включён', type: 'boolean' },

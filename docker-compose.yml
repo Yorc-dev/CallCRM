@@ -37,9 +37,13 @@ services:
       - SECRET_KEY=change-me-in-production-please
       - DEBUG=1
       - ALLOWED_HOSTS=*
+      - INGEST_TOKEN=dev-ingest-token-change-me
+      - MODELS_DIR=/models
+      - WHISPER_MODEL=medium
     volumes:
       - ./backend:/app
       - media_data:/app/media
+      - models_data:/models
     ports:
       - "8000:8000"
     depends_on:
@@ -61,15 +65,54 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - SECRET_KEY=change-me-in-production-please
       - DEBUG=1
+      - INGEST_TOKEN=dev-ingest-token-change-me
+      - MODELS_DIR=/models
+      - WHISPER_MODEL=medium
+      - USE_CUDA=0
+      - ASR_COMPUTE_TYPE=int8_float32
+      - ASR_BEAM_SIZE=5
+      - ASR_HOTWORDS=
+      - ASR_TEMPERATURE=0.0,0.2,0.4,0.6,0.8,1.0
+      - OLLAMA_NUM_PREDICT=300
+      - LLM_ENABLED=1
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:1.5b
+      - OLLAMA_KEEP_ALIVE=30m
+      - DIARIZE_THRESHOLD=0.42
     volumes:
       - ./backend:/app
       - media_data:/app/media
+      - models_data:/models
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A crm worker --loglevel=info
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  ingest:
+    build:
+      context: ./audio-monitor/ingest
+      dockerfile: Dockerfile
+    environment:
+      - DATA_DIR=/data
+      - CALLCRM_INGEST_URL=http://backend:8000/api/analysis/ingest/
+      - INGEST_TOKEN=dev-ingest-token-change-me
+      - PUBLIC_UPLOAD_URL=http://localhost:8080/api/v1/upload
+      - SAMPLE_RATE=16000
+    volumes:
+      - ingest_data:/data
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
 
   frontend:
     build:
@@ -83,3 +126,6 @@ services:
 volumes:
   postgres_data:
   media_data:
+  models_data:
+  ingest_data:
+  ollama_data:
